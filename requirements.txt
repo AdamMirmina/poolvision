@@ -1,0 +1,5 @@
+# Probe + pipeline. Torch comes in via ultralytics; on a machine with an NVIDIA
+# GPU install the CUDA torch build first, otherwise this runs on CPU (slower but
+# fine for the probe).
+ultralytics>=8.3.0
+opencv-python>=4.10.0

@@ -1,0 +1,36 @@
+# Video NEVER goes in git. A single party is 12-30 GB.
+*.mov
+*.mp4
+*.MOV
+*.MP4
+*.mkv
+*.avi
+footage/
+clips/
+
+# Model weights (tens to hundreds of MB) and anything downloaded/trained.
+*.pt
+*.onnx
+*.engine
+weights/
+runs/
+
+# Extracted frames + labels. Regenerable from footage, and large.
+frames/
+datasets/
+labels/
+
+# Probe output (annotated frames, reports) -- regenerable.
+out/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
