@@ -1,0 +1,28 @@
+# Ground-truth shot outcomes, called by review from the footage. Review played in it,
+# so this file is authoritative over anything the pipeline reports.
+#
+# Kept in git deliberately: the footage is too big to commit and can be lost,
+# but these labels are the expensive part. They are what any make/miss model
+# gets trained and measured against.
+#
+# time     m:ss as review gave it, to the nearest second or two. The event is the
+#          ball arriving at the rim, so search a second either side.
+# hoop     left | right | ? (unknown, to be filled in by inspection)
+# outcome  make      ball passed through the rim
+#          miss      did not go in, mechanism not specified
+#          behind    passed behind the rim on the far side (looks like a make
+#                    from the camera, the main false positive)
+#          airball   missed everything, may still have swished the net
+#          rimout    hit the rim and stayed out
+# source   hand    = called by review
+#          checked = additionally confirmed frame by frame
+#
+# Wanted most: behind, airball and rimout. Makes are easy; the near-misses are
+# what will fool a model.
+time,video,hoop,outcome,source,notes
+4:52,IMG_2403.MOV,?,miss,hand,
+4:55,IMG_2403.MOV,?,make,hand,
+6:09,IMG_2403.MOV,right,make,checked,ball inside the net cone, mesh both sides, net deforms
+6:18,IMG_2403.MOV,left,behind,checked,"mesh only in front of the ball; ball width 83px->71px as it descends, i.e. receding"
+4:58,IMG_2403.MOV,?,miss,hand,
+5:14,IMG_2403.MOV,?,make,hand,
