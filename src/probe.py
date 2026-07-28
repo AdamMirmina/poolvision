@@ -45,6 +45,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--conf", type=float, default=0.25, help="Detection confidence floor")
     p.add_argument("--out", type=Path, default=Path("out"), help="Output directory")
     p.add_argument("--save-every", type=int, default=20, help="Save an annotated frame every N sampled frames")
+    # Real recordings have long dead stretches (nobody in the pool). Sampling
+    # those wastes the budget and drags every average toward zero, so the window
+    # of actual play can be selected explicitly.
+    p.add_argument("--start", type=float, default=0.0, help="Start at this minute")
+    p.add_argument("--end", type=float, default=None, help="Stop at this minute")
     return p.parse_args()
 
 
@@ -67,10 +72,19 @@ def main() -> None:
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    step = max(1, total // max(1, args.frames))
+
+    first = int(args.start * 60 * fps)
+    last = int(args.end * 60 * fps) if args.end is not None else total
+    first = max(0, min(first, total - 1))
+    last = max(first + 1, min(last, total))
+    span = last - first
+    step = max(1, span // max(1, args.frames))
+    if first:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, first)
 
     print(f"{args.video.name}: {w}x{h} @ {fps:.1f}fps, {total} frames "
-          f"({total / fps / 60:.1f} min). Sampling every {step}th frame.")
+          f"({total / fps / 60:.1f} min). Window {args.start:.1f}-"
+          f"{(last / fps / 60):.1f} min, every {step}th frame.")
 
     model = YOLO(args.model)
 
@@ -83,12 +97,12 @@ def main() -> None:
     track_seen: dict[int, int] = defaultdict(int)
     sampled = 0
 
-    idx = 0
-    while True:
+    idx = first
+    while idx < last:
         ok = cap.grab()
         if not ok:
             break
-        if idx % step == 0:
+        if (idx - first) % step == 0:
             ok, frame = cap.retrieve()
             if not ok:
                 break
@@ -131,6 +145,7 @@ def main() -> None:
         "resolution": f"{w}x{h}",
         "fps": round(fps, 1),
         "duration_min": round(total / fps / 60, 1) if fps else None,
+        "window_min": [round(first / fps / 60, 1), round(last / fps / 60, 1)],
         "frames_sampled": sampled,
         "model": args.model,
         "people": {
@@ -161,8 +176,18 @@ def main() -> None:
 def render(r: dict) -> str:
     p, b, t = r["people"], r["ball"], r["tracking"]
     # Rough reads, not verdicts. The annotated frames decide.
-    person_ok = p["mean_confidence"] >= 0.6 and p["frames_with_none_pct"] < 10
-    ball_ok = b["detected_in_pct_of_frames"] >= 40
+    #
+    # Judge person detection on CONFIDENCE only. An earlier version also required
+    # frames_with_none_pct < 10 and reported "needs fine-tuning" on footage where
+    # detection was in fact working well -- because a real recording has stretches
+    # with nobody in the pool, and "the detector found no one" is indistinguishable
+    # here from "there was no one to find". That metric can't separate the two, so
+    # it's reported but not used to judge.
+    person_ok = p["mean_confidence"] >= 0.6
+    # Likewise, a ball that's merely PRESENT in frame (sitting on the deck) is not
+    # the same as tracking a thrown one. Low mean confidence usually means it's
+    # locking onto a static object rather than the game ball, so require both.
+    ball_ok = b["detected_in_pct_of_frames"] >= 40 and b["mean_confidence"] >= 0.5
     return f"""# poolvision probe
 
 `{r['video']}`
@@ -180,10 +205,13 @@ def render(r: dict) -> str:
 - **{'usable off-the-shelf' if ball_ok else 'needs its own training pass -- expect to label a few hundred frames'}**
 
 ## Tracking
-- {t['unique_track_ids']} unique track ids for a party of ~8
-- median track length {t['median_track_len']} sampled frames; longest {t['longest_tracks']}
-- **Track ids far above headcount means tracks fragment, which is what makes
-  identity hard. This is the number that decides whether caps are enough.**
+- {t['unique_track_ids']} unique track ids; median track length
+  {t['median_track_len']} sampled frames; longest {t['longest_tracks']}
+- **Only meaningful if sampled frames are CONSECUTIVE.** This probe samples
+  sparsely across a long window to measure detection, which puts seconds between
+  samples -- no tracker can associate identities across that, so these numbers
+  say nothing about real fragmentation. Measure tracking separately on a short
+  run of consecutive frames.
 
 ## Next
 Open `out/frames/` and look. Numbers won't tell you the camera was mounted too
