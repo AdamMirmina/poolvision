@@ -44,10 +44,23 @@ HOOPS = {
     "right": Hoop(x1=3535, y1=562, x2=3717, y2=655),
 }
 
-# Windows of interest, in seconds. From the own description of the session.
-SHOOTING = [(280, 400, "shoot_a"), (555, 620, "shoot_b")]
-COLOR = [(435, 465, "noodles"), (490, 510, "small_balls")]
+# Windows of interest, in seconds. Originally taken from a description of the
+# session; two of them did not survive contact with the footage and were moved
+# on 2026-07-28 after checking frames directly:
+#   shoot_b was 555-620, which is ~30s of play then an empty pool.
+#   small_balls was 490-510, but the balls are actually held up around 478-500.
+# src/activity.py puts real activity at 4:41-8:35. Re-derive these from the
+# video rather than from memory of it -- guessing them wrong is what produced
+# both the "no basketball was played" verdict and a 100%-ball-detection number
+# that was really a ball lying still on the deck.
+SHOOTING = [(280, 400, "shoot_a"), (545, 585, "shoot_b")]
+COLOR = [(435, 470, "noodles"), (478, 500, "small_balls")]
 SWAP = (515, 555, "swap")
+
+# The pool's own hue in OpenCV's 0-179 scale (192 degrees), measured off the
+# footage. Used to reject water when sampling a held object's color.
+WATER_HUE = 96
+WATER_HUE_MARGIN = 15
 
 
 def parse_args():
@@ -83,13 +96,20 @@ def stage_a(args, cv2, YOLO):
         f = int(a * fps)
         end = int(b * fps)
         t0 = time.time()
+        # Every ball detection per frame, not just the best one. Keeping only the
+        # most confident ball loses the game: a ball sitting still on the deck is
+        # sharp and unobstructed, the ball in play is wet, fast and blurred, so
+        # the stationary one wins every single frame. That is exactly what
+        # happened -- one window tracked a ball that moved four pixels in 65
+        # seconds and reported a 100% detection rate for it.
+        frame_balls: dict[int, list] = {}
         while f < end:
             ok, fr = cap.read()
             if not ok:
                 break
             r = model.track(fr, persist=True, conf=0.15, verbose=False,
                             classes=[PERSON, SPORTS_BALL], imgsz=args.imgsz)[0]
-            best_ball = None
+            balls = []
             here = []
             if r.boxes is not None and len(r.boxes):
                 ids = r.boxes.id
@@ -99,20 +119,20 @@ def stage_a(args, cv2, YOLO):
                     x1, y1, x2, y2 = bx.xyxy[0].tolist()
                     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
                     if cls == SPORTS_BALL:
-                        # keep only the most confident ball in the frame
-                        if best_ball is None or cf > best_ball[2]:
-                            best_ball = (cx, cy, cf)
+                        balls.append((cx, cy, cf))
                     else:
                         tid = int(ids[i].item()) if ids is not None else -1
                         here.append((tid, cx, cy))
-            if best_ball:
-                ball_track.append(BallPoint(f, best_ball[0], best_ball[1]))
+            frame_balls[f] = balls
             people[f] = here
             f += 1
             if (f - int(a * fps)) % 300 == 0:
                 done = f - int(a * fps)
                 tot = end - int(a * fps)
-                log(f"  {done}/{tot} frames, {time.time()-t0:.0f}s, ball seen {len(ball_track)}x")
+                seen = sum(1 for v in frame_balls.values() if v)
+                log(f"  {done}/{tot} frames, {time.time()-t0:.0f}s, ball seen {seen}x")
+        ball_track, n_parked = pick_moving_ball(frame_balls)
+        log(f"A/{name}: dropped {n_parked} detections of ball(s) sitting still")
         # Shots, against each hoop. Frame indices are absolute, and at 30fps a
         # pass takes well under a second, so the defaults hold.
         makes = []
@@ -133,6 +153,38 @@ def stage_a(args, cv2, YOLO):
         log(f"A/{name}: ball in {len(ball_track)} frames, {len(makes)} make(s) detected")
     cap.release()
     return results
+
+
+def pick_moving_ball(frame_balls, cell=45, parked_frac=0.25):
+    """Choose one ball per frame, ignoring any that never move.
+
+    A ball resting on the deck is detected in nearly every frame at nearly the
+    same pixel. Bin detections into a coarse grid and treat any cell that is
+    occupied in more than `parked_frac` of frames as furniture, not play. Among
+    what's left, take the most confident detection in each frame.
+
+    Returns (track, dropped_count).
+    """
+    n_frames = max(1, len(frame_balls))
+    occupancy: dict[tuple[int, int], int] = {}
+    for balls in frame_balls.values():
+        # count each cell at most once per frame
+        for key in {(int(x // cell), int(y // cell)) for (x, y, _c) in balls}:
+            occupancy[key] = occupancy.get(key, 0) + 1
+    parked = {k for k, v in occupancy.items() if v > parked_frac * n_frames}
+
+    track, dropped = [], 0
+    for f in sorted(frame_balls):
+        live = []
+        for (x, y, c) in frame_balls[f]:
+            if (int(x // cell), int(y // cell)) in parked:
+                dropped += 1
+            else:
+                live.append((x, y, c))
+        if live:
+            x, y, _ = max(live, key=lambda b: b[2])
+            track.append(BallPoint(f, x, y))
+    return track, dropped
 
 
 def nearest_person(people, frame, ball_track):
@@ -184,18 +236,27 @@ def stage_b(args, cv2, YOLO, np):
                 if r.boxes is not None:
                     for bx in r.boxes:
                         x1, y1, x2, y2 = [int(v) for v in bx.xyxy[0].tolist()]
-                        # band above the head, where a held-up object sits
+                        # Sample the top third of the box, NOT the band above it.
+                        # Someone holding an object up has their arms in the box,
+                        # so the object is already inside it -- the strip above
+                        # the box is the water behind them. Sampling there is why
+                        # the first run reported every hue at 190-198 (pool cyan)
+                        # and made color identity look hopeless.
                         bh = max(12, (y2 - y1) // 3)
-                        yy1, yy2 = max(0, y1 - bh), max(1, y1)
+                        yy1, yy2 = y1, min(fr.shape[0], y1 + bh)
                         patch = fr[yy1:yy2, x1:x2]
                         if patch.size == 0:
                             continue
                         hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-                        # the most saturated pixels are the colored object,
-                        # not the sky/deck behind it
+                        # Saturated pixels are the colored object rather than the
+                        # deck behind it, and anything at the water's own hue is
+                        # rejected outright so splash and background pool can't
+                        # be mistaken for a target.
                         s = hsv[:, :, 1]
+                        h = hsv[:, :, 0].astype(int)
+                        dh = np.minimum(np.abs(h - WATER_HUE), 180 - np.abs(h - WATER_HUE))
                         thr = np.percentile(s, 92)
-                        m = s >= max(thr, 90)
+                        m = (s >= max(thr, 90)) & (dh > WATER_HUE_MARGIN)
                         if m.sum() < 20:
                             continue
                         samples.append([float(np.median(hsv[:, :, 0][m])),

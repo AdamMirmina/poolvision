@@ -128,6 +128,30 @@ amb = [
 ]
 check("hopeless cases return None", all(a.player is None for a in assign(amb, C2P)), True)
 
+# ---- picking the ball that's actually in play -------------------------------
+# Regression for the real failure in the 2026-07-27 run: a ball resting on the
+# deck was detected at 0.88 in all 1,950 frames while the ball being played with
+# was blurred and weaker, so "keep the most confident ball" tracked furniture for
+# 65 seconds and reported a 100% detection rate for it.
+from analyze import pick_moving_ball  # noqa: E402
+
+parked_plus_play = {}
+for f in range(200):
+    balls = [(424.0, 2084.0, 0.88)]           # never moves, always confident
+    if f % 3 == 0:
+        balls.append((500.0 + f * 12, 900.0 - f * 2, 0.31))   # in play, weaker
+    parked_plus_play[f] = balls
+
+track, dropped = pick_moving_ball(parked_plus_play)
+check("the parked ball is dropped", dropped, 200)
+check("the ball in play is kept", len(track), 67)
+check("no sample sits on the parked ball", all(abs(p.x - 424) > 50 for p in track), True)
+
+# A window with no stationary ball must be left alone.
+only_play = {f: [(500.0 + f * 12, 900.0 - f * 2, 0.31)] for f in range(60)}
+t2, d2 = pick_moving_ball(only_play)
+check("a clean window is untouched", (len(t2), d2), (60, 0))
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: {', '.join(failures)}")
