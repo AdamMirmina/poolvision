@@ -164,6 +164,18 @@ def pick_moving_ball(frame_balls, cell=45, parked_frac=0.25):
     what's left, take the most confident detection in each frame.
 
     Returns (track, dropped_count).
+
+    KNOWN LIMITATION, and it is a real one: this returns a single ball per
+    frame, which assumes a single ball in play. confirmed 2026-07-28 that
+    from about 6:29 in the test footage there are TWO balls in the pool, and
+    that this is normal for how the game is actually played. With two live
+    balls the returned "track" jumps between them, which is not merely noisy --
+    it can manufacture a make out of nothing, by pairing ball A above the rim
+    with ball B below it a few frames later.
+
+    So this function is a stopgap for single-ball stretches. The real fix is to
+    keep each ball's tracker id as its own trajectory and run the shot geometry
+    per trajectory. Do not build make detection on top of this as it stands.
     """
     n_frames = max(1, len(frame_balls))
     occupancy: dict[tuple[int, int], int] = {}
