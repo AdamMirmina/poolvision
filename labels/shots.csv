@@ -22,7 +22,7 @@
 time,video,hoop,outcome,source,notes
 4:52,IMG_2403.MOV,?,miss,hand,
 4:55,IMG_2403.MOV,?,make,hand,
-6:09,IMG_2403.MOV,right,make,checked,ball inside the net cone, mesh both sides, net deforms
+6:09,IMG_2403.MOV,right,make,checked,"ball inside the net cone, mesh both sides, net deforms; review also called this 6:10 — same shot, ball reaches the rim at 369.9s, not two events"
 6:18,IMG_2403.MOV,left,behind,checked,"mesh only in front of the ball; ball width 83px->71px as it descends, i.e. receding"
 4:58,IMG_2403.MOV,?,miss,hand,
 5:14,IMG_2403.MOV,?,make,hand,
@@ -33,3 +33,5 @@ time,video,hoop,outcome,source,notes
 5:35,IMG_2403.MOV,?,make,hand,
 5:40,IMG_2403.MOV,?,make,hand,
 5:50,IMG_2403.MOV,?,miss,hand,
+6:06,IMG_2403.MOV,?,miss,hand,
+6:15,IMG_2403.MOV,?,make,hand,
