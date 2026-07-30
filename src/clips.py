@@ -55,46 +55,70 @@ def parse_args():
     return p.parse_args()
 
 
+JITTER_PX = 25      # detector wobble tolerated without calling it a direction change
+MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
+MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
+
+
 def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
-    """Group detections into candidate events, then merge any whose CLIP WINDOWS
-    would overlap.
+    """One shot per clip, found by its DESCENT.
 
-    Clustering on detection gaps alone splits a single shot in two. A real shot
-    goes: ball held low, a pause while the shooter sets, then the throw, the
-    arc, and the fall. The detector loses the ball during the pause, so a
-    gap rule cuts the shot in half and produces one clip of someone raising
-    their arm and a separate clip of the ball arriving -- which is exactly what
-    the marked shot hit on the very first clip he reviewed.
+    Two rules were tried and both fail, for opposite reasons. Splitting on gaps
+    in detection cuts a single shot in half, because the ball is lost during the
+    pause while the shooter sets -- that produced a clip of someone raising their
+    arm and a separate clip of the ball arriving. Widening the gap and merging
+    overlapping windows fixed that but glued genuinely separate shots together,
+    which is worse: a reviewer is shown two outcomes and one set of buttons and
+    has no way to say which one they mean.
 
-    Padding each event out to its clip window and merging overlaps fixes it,
-    because the two halves of one shot are always closer together than the
-    padding. The cost is that two genuinely separate shots close in time end up
-    in one clip; those are flagged rather than silently merged, and review
-    can say so in the notes.
+    Neither is fixable by tuning, because the two failures want the threshold
+    moved in opposite directions. At 4:52 two shots sit 1.36s apart; the pause
+    inside the single 5:44 shot is 1.03s. There is no gap that separates one and
+    not the other.
+
+    What actually defines a shot is the ball coming down at the hoop, exactly
+    once. So an event is a run of falling detections spanning a real drop. The
+    two shots at 4:52 fall 737->1136 and 751->1204: unambiguously two. The 5:44
+    shot, wind-up and all, contains one descent: unambiguously one.
     """
     events = []
     for hoop, hits in hits_by_hoop.items():
-        hits = sorted(hits, key=lambda h: h["t"])
-        cur: list = []
-        for h in hits:
-            if cur and h["t"] - cur[-1]["t"] > gap:
-                events.append((hoop, cur))
-                cur = []
-            cur.append(h)
-        if cur:
-            events.append((hoop, cur))
-    events = [(h, e) for h, e in events if len(e) >= min_dets]
+        pts = sorted(hits, key=lambda h: h["t"])
+        if not pts:
+            continue
+        runs, cur = [], [pts[0]]
+        for p in pts[1:]:
+            prev = cur[-1]
+            falling = p["y"] >= prev["y"] - JITTER_PX
+            if p["t"] - prev["t"] > MAX_GAP_S or not falling:
+                runs.append(cur)
+                cur = [p]
+            else:
+                cur.append(p)
+        runs.append(cur)
+        for r in runs:
+            if len(r) >= min_dets and (r[-1]["y"] - r[0]["y"]) >= MIN_DROP_PX:
+                events.append((hoop, r))
 
-    merged = []
-    for hoop, dets in sorted(events, key=lambda e: (e[0], e[1][0]["t"])):
-        start, end = dets[0]["t"] - LEAD_S, dets[-1]["t"] + TAIL_S
-        if merged and merged[-1][0] == hoop and start <= merged[-1][2]:
-            merged[-1][1].extend(dets)
-            merged[-1][2] = max(merged[-1][2], end)
-        else:
-            merged.append([hoop, list(dets), end])
-    out = [(h, sorted(d, key=lambda x: x["t"])) for h, d, _ in merged]
-    out.sort(key=lambda e: e[1][0]["t"])
+    events.sort(key=lambda e: e[1][0]["t"])
+    return events
+
+
+def windows(events):
+    """Clip bounds per event, trimmed so neighbouring shots never overlap --
+    otherwise the lead-in of one shot swallows the previous one and the clip
+    shows two again."""
+    out = []
+    for i, (hoop, dets) in enumerate(events):
+        start = dets[0]["t"] - LEAD_S
+        end = dets[-1]["t"] + TAIL_S
+        prev = next((e for e in reversed(events[:i]) if e[0] == hoop), None)
+        if prev:
+            start = max(start, prev[1][-1]["t"] + 0.35)
+        nxt = next((e for e in events[i + 1:] if e[0] == hoop), None)
+        if nxt:
+            end = min(end, nxt[1][0]["t"] - 0.35)
+        out.append((max(0.0, start), max(start + 0.8, end)))
     return out
 
 
@@ -104,7 +128,8 @@ def main():
 
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
     events = cluster(rw["hits"], args.gap, args.min_dets)
-    print(f"{len(events)} candidate events")
+    bounds = windows(events)
+    print(f"{len(events)} shots (one descent each)")
 
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -113,9 +138,8 @@ def main():
 
     for i, (hoop, dets) in enumerate(events, 1):
         x1, y1, x2, y2 = RIM_BOXES[hoop]
-        t_start = max(0.0, dets[0]["t"] - LEAD_S)
-        t_end = dets[-1]["t"] + TAIL_S
-        f0, f1 = int(t_start * fps), int(t_end * fps)
+        t_start, t_stop = bounds[i - 1]
+        f0, f1 = int(t_start * fps), int(t_stop * fps)
         h = int(OUT_W * (y2 - y1) / (x2 - x1)) // 2 * 2   # even height for yuv420p
         name = f"shot_{i:03d}_{hoop}_{dets[0]['t']:.0f}s.mp4"
         path = args.out / name
@@ -147,6 +171,8 @@ def main():
             "hoop": hoop,
             "t": round(dets[0]["t"], 2),
             "t_end": round(dets[-1]["t"], 2),
+            "clip_start": round(t_start, 2),
+            "clip_stop": round(t_stop, 2),
             "clock": f"{int(dets[0]['t'])//60}:{int(dets[0]['t'])%60:02d}",
             "dets": len(dets),
             "peak_conf": round(max(d["conf"] for d in dets), 3),

@@ -57,7 +57,7 @@ console.log(`${index.length} new clips\n`);
 const rim = JSON.parse(fs.readFileSync("out/rimwatch_full.json", "utf8"));
 function arcsIn(clip) {
   const pts = (rim.hits[clip.hoop] || [])
-    .filter((h) => h.t >= clip.t - 1.2 && h.t <= clip.t_end + 2.2)
+    .filter((h) => h.t >= clip.clip_start && h.t <= clip.clip_stop)
     .sort((a, b) => a.t - b.t);
   if (pts.length < 6) return pts.length ? 1 : 0;
   // smooth y a little so detector jitter isn't mistaken for an arc
@@ -79,10 +79,11 @@ const multi = index.filter((c) => c.arcs > 1);
 console.log(`${multi.length} clips hold more than one arc: ${multi.map((c) => `#${c.n} ${c.clock} (${c.arcs})`).join(", ")}\n`);
 
 // 2. work out where each label lands, before touching anything
-const LEAD = 1.2, TAIL = 2.2;
 const assign = new Map();
 for (const L of carried) {
-  const hit = index.find((c) => c.hoop === L.hoop && L.t >= c.t - LEAD - 0.5 && L.t <= c.t_end + TAIL + 0.5);
+  // a call belongs to the clip whose DESCENT window contains it
+  const hit = index.find((c) => c.hoop === L.hoop && L.t >= c.t - 1.5 && L.t <= c.t_end + 1.5)
+    || index.find((c) => c.hoop === L.hoop && L.t >= c.clip_start && L.t <= c.clip_stop);
   if (!hit) { console.log(`  ${L.clock} ${L.hoop} ${L.label}: no new clip covers it — DROPPED`); continue; }
   const prev = assign.get(hit.n);
   if (prev && prev.label !== L.label) {
