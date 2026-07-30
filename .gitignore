@@ -23,6 +23,7 @@ labels/*
 # footage; these calls are the expensive part and the only ground truth a
 # make/miss model can be measured against. Keep them.
 !labels/shots.csv
+!labels/*-shots.csv
 
 # Probe output (annotated frames, reports) -- regenerable.
 out/
