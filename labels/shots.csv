@@ -20,20 +20,20 @@
 # Wanted most: behind, airball and rimout. Makes are easy; the near-misses are
 # what will fool a model.
 time,video,hoop,outcome,source,notes
-4:52,IMG_2403.MOV,?,miss,hand,
-4:55,IMG_2403.MOV,?,make,hand,
+4:52,IMG_2403.MOV,left,miss,hand,hoop assigned by rimwatch
+4:55,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
 6:09,IMG_2403.MOV,right,make,checked,"ball inside the net cone, mesh both sides, net deforms; review also called this 6:10 — same shot, ball reaches the rim at 369.9s, not two events"
 6:18,IMG_2403.MOV,left,behind,checked,"mesh only in front of the ball; ball width 83px->71px as it descends, i.e. receding"
-4:58,IMG_2403.MOV,?,miss,hand,
-5:14,IMG_2403.MOV,?,make,hand,
-5:20,IMG_2403.MOV,?,make,hand,
-5:22,IMG_2403.MOV,?,make,hand,
-5:25,IMG_2403.MOV,?,miss,hand,
-5:32,IMG_2403.MOV,?,miss,hand,
-5:35,IMG_2403.MOV,?,make,hand,
-5:40,IMG_2403.MOV,?,make,hand,
-5:50,IMG_2403.MOV,?,miss,hand,
-6:06,IMG_2403.MOV,?,miss,hand,
-6:15,IMG_2403.MOV,?,make,hand,
-6:01,IMG_2403.MOV,?,make,hand,
-6:29,IMG_2403.MOV,?,make,hand,"two balls in the pool from about here on"
+4:58,IMG_2403.MOV,right,miss,hand,hoop assigned by rimwatch
+5:14,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
+5:20,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
+5:22,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
+5:25,IMG_2403.MOV,right,miss,hand,hoop assigned by rimwatch
+5:32,IMG_2403.MOV,right,miss,hand,hoop assigned by rimwatch
+5:35,IMG_2403.MOV,right,make,hand,hoop assigned by rimwatch
+5:40,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
+5:50,IMG_2403.MOV,right,miss,hand,hoop assigned by rimwatch
+6:06,IMG_2403.MOV,right,miss,hand,hoop assigned by rimwatch
+6:15,IMG_2403.MOV,right,make,hand,hoop assigned by rimwatch
+6:01,IMG_2403.MOV,left,make,hand,hoop assigned by rimwatch
+6:29,IMG_2403.MOV,right,make,hand,two balls in the pool from about here on; hoop assigned by rimwatch
