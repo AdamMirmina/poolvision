@@ -34,8 +34,8 @@ RIM_BOXES = {
     "left": (188, 453, 1248, 1293),
     "right": (2860, 178, 3840, 1038),
 }
-LEAD_S = 1.0    # before the first detection
-TAIL_S = 1.5    # after the last, so the outcome is visible
+LEAD_S = 1.2    # before the first detection
+TAIL_S = 2.2    # after the last -- the outcome is the entire point of the clip
 OUT_W = 640     # even number required by yuv420p
 CRF = 30        # quality/size knob; 30 keeps a 3s clip near 200KB
 
@@ -56,9 +56,22 @@ def parse_args():
 
 
 def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
-    """Group detections into candidate events. Presence-based, which is why two
-    shots in quick succession can merge (5:20 and 5:22 in the test footage do
-    exactly that) -- splitting those properly needs trajectory, not presence."""
+    """Group detections into candidate events, then merge any whose CLIP WINDOWS
+    would overlap.
+
+    Clustering on detection gaps alone splits a single shot in two. A real shot
+    goes: ball held low, a pause while the shooter sets, then the throw, the
+    arc, and the fall. The detector loses the ball during the pause, so a
+    gap rule cuts the shot in half and produces one clip of someone raising
+    their arm and a separate clip of the ball arriving -- which is exactly what
+    the marked shot hit on the very first clip he reviewed.
+
+    Padding each event out to its clip window and merging overlaps fixes it,
+    because the two halves of one shot are always closer together than the
+    padding. The cost is that two genuinely separate shots close in time end up
+    in one clip; those are flagged rather than silently merged, and review
+    can say so in the notes.
+    """
     events = []
     for hoop, hits in hits_by_hoop.items():
         hits = sorted(hits, key=lambda h: h["t"])
@@ -71,8 +84,18 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
         if cur:
             events.append((hoop, cur))
     events = [(h, e) for h, e in events if len(e) >= min_dets]
-    events.sort(key=lambda e: e[1][0]["t"])
-    return events
+
+    merged = []
+    for hoop, dets in sorted(events, key=lambda e: (e[0], e[1][0]["t"])):
+        start, end = dets[0]["t"] - LEAD_S, dets[-1]["t"] + TAIL_S
+        if merged and merged[-1][0] == hoop and start <= merged[-1][2]:
+            merged[-1][1].extend(dets)
+            merged[-1][2] = max(merged[-1][2], end)
+        else:
+            merged.append([hoop, list(dets), end])
+    out = [(h, sorted(d, key=lambda x: x["t"])) for h, d, _ in merged]
+    out.sort(key=lambda e: e[1][0]["t"])
+    return out
 
 
 def main():
