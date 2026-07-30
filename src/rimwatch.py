@@ -21,17 +21,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hoops import rig_for  # noqa: E402
+
 SPORTS_BALL = 32
 
-# Generous boxes around each rim: wide enough to catch the approach and the ball
-# on the way out underneath, clamped to the frame.
-RIM_BOXES = {
-    "left": (268, 533, 1168, 1233),
-    "right": (2940, 258, 3840, 958),
-}
 
 
 def parse_args():
@@ -56,6 +54,7 @@ def main():
     import cv2
     from ultralytics import YOLO
 
+    rig = rig_for(args.video)
     model = YOLO(args.model)
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -63,7 +62,7 @@ def main():
     cap.set(cv2.CAP_PROP_POS_FRAMES, start)
     log(f"rimwatch {args.t0:.0f}s-{args.t1:.0f}s ({end-start} frames), conf {args.conf}, imgsz {args.imgsz}")
 
-    hits = {k: [] for k in RIM_BOXES}
+    hits = {k: [] for k in rig.crops}
     f = start
     t0 = time.time()
     while f < end:
@@ -71,7 +70,7 @@ def main():
         if not ok:
             break
         if (f - start) % args.step == 0:
-            for name, (x1, y1, x2, y2) in RIM_BOXES.items():
+            for name, (x1, y1, x2, y2) in rig.crops.items():
                 crop = fr[y1:y2, x1:x2]
                 r = model.predict(crop, conf=args.conf, verbose=False,
                                   classes=[SPORTS_BALL], imgsz=args.imgsz)[0]
@@ -99,7 +98,7 @@ def main():
     args.out.write_text(json.dumps({
         "window_s": [args.t0, args.t1],
         "conf": args.conf,
-        "boxes": RIM_BOXES,
+        "boxes": rig.crops,
         "hits": hits,
     }, indent=1), encoding="utf-8")
     for k, v in hits.items():

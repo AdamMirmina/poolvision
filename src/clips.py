@@ -21,19 +21,16 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from hoops import rig_for  # noqa: E402
 
 import imageio_ffmpeg
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
-# Crop boxes, matching rimwatch's. Wider than the rim so the ball's approach and
-# its exit are both in frame; a tight crop on the rim hides exactly the evidence
-# a human needs.
-RIM_BOXES = {
-    "left": (188, 453, 1248, 1293),
-    "right": (2860, 178, 3840, 1038),
-}
 LEAD_S = 1.2    # before the first detection
 TAIL_S = 2.2    # after the last -- the outcome is the entire point of the clip
 OUT_W = 640     # even number required by yuv420p
@@ -126,6 +123,7 @@ def main():
     args = parse_args()
     import cv2
 
+    rig = rig_for(args.video)
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
     events = cluster(rw["hits"], args.gap, args.min_dets)
     bounds = windows(events)
@@ -137,7 +135,7 @@ def main():
     index = []
 
     for i, (hoop, dets) in enumerate(events, 1):
-        x1, y1, x2, y2 = RIM_BOXES[hoop]
+        x1, y1, x2, y2 = rig.crops[hoop]
         t_start, t_stop = bounds[i - 1]
         f0, f1 = int(t_start * fps), int(t_stop * fps)
         h = int(OUT_W * (y2 - y1) / (x2 - x1)) // 2 * 2   # even height for yuv420p
