@@ -110,21 +110,43 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
     return events
 
 
+MIN_TAIL_S = 1.5   # the outcome must be on screen, whatever else gets cut
+MIN_LEAD_S = 0.3
+
+
 def windows(events):
-    """Clip bounds per event, trimmed so neighbouring shots never overlap --
-    otherwise the lead-in of one shot swallows the previous one and the clip
-    shows two again."""
+    """Clip bounds per event.
+
+    Trimmed against neighbours so one clip doesn't simply replay the shot
+    before it, but the TAIL is protected and the lead-in gives way first. When
+    shots come in quick succession, squeezing both ends equally produced clips
+    as short as 0.8s -- 32 of 128 on IMG_2481 were under two seconds, which is
+    not long enough to see whether the ball went in. A clip that starts with the
+    ball already falling is judgeable; one that ends before the ball arrives is
+    worthless, and worse than worthless in a review queue because it still costs
+    a decision.
+
+    So a clip may overlap slightly into the next shot's lead-in. That is the
+    lesser evil: each clip is still centered on its own descent, and the overlap
+    shows the previous ball already gone.
+    """
     out = []
     for i, (hoop, dets) in enumerate(events):
-        start = dets[0]["t"] - LEAD_S
-        end = dets[-1]["t"] + TAIL_S
+        d0, d1 = dets[0]["t"], dets[-1]["t"]
+        start = d0 - LEAD_S
+        end = d1 + TAIL_S
+
         prev = next((e for e in reversed(events[:i]) if e[0] == hoop), None)
         if prev:
             start = max(start, prev[1][-1]["t"] + 0.35)
+        start = min(start, d0 - MIN_LEAD_S)          # never eat into the shot itself
+
         nxt = next((e for e in events[i + 1:] if e[0] == hoop), None)
         if nxt:
             end = min(end, nxt[1][0]["t"] - 0.35)
-        out.append((max(0.0, start), max(start + 0.8, end)))
+        end = max(end, d1 + MIN_TAIL_S)              # the outcome wins over tidiness
+
+        out.append((max(0.0, start), end))
     return out
 
 
