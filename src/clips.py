@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops import rig_for  # noqa: E402
+from parked import drop_parked  # noqa: E402
 
 import imageio_ffmpeg
 
@@ -80,6 +81,11 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
     """
     events = []
     for hoop, hits in hits_by_hoop.items():
+        # A ball at rest is detected in most frames and would otherwise dominate
+        # everything downstream -- see parked.py for the two times this bit.
+        hits, dropped = drop_parked(hits)
+        if dropped:
+            print(f"  {hoop}: dropped {dropped} detections of ball(s) sitting still")
         pts = sorted(hits, key=lambda h: h["t"])
         if not pts:
             continue
