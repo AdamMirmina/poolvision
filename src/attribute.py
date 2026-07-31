@@ -56,30 +56,60 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--video", default="IMG_2482.MOV")
     p.add_argument("--shots", type=int, default=20)
+    p.add_argument("--skip", type=int, default=0,
+                   help="skip this many shots first. The caps go on partway through "
+                        "IMG_2481, and the first run took the earliest 20 shots, which "
+                        "are all bare-headed -- a clean pipeline reporting a real zero.")
     p.add_argument("--lookback", type=float, default=2.0,
                    help="seconds before the descent to search for the release")
     return p.parse_args()
 
 
-def cap_hue(frame, box, np, cv2):
-    """The dominant cap-like hue in the top of a person's box.
+# Skin and the ball both live at the warm end. Measured on this footage: skin
+# 0-20 degrees, the ball 320-354. The caps that showed up in the caps-only
+# videos sit at 40-100. So a cap reading has to EXCLUDE the warm end, not just
+# exclude the water -- the first version of this did only the latter and
+# duly reported 12 of 13 shooters as hue 6-10, which is a suntan.
+SKIN_BALL_LO, SKIN_BALL_HI = 300, 30      # degrees, wrapping through 0
+CAP_LO, CAP_HI = 32, 300                  # everything else
 
-    The top, not above it: someone with their arms up has a detection box that
-    already contains whatever they are holding, so sampling above the box lands
-    on the water behind them. That mistake cost a whole stage in phase 3.
+
+def _is_cap_hue(deg):
+    return CAP_LO <= deg <= CAP_HI
+
+
+def cap_hue(frame, box, np, cv2):
+    """The cap color on a person, or nothing.
+
+    Samples the top FIFTH of the detection box, not the top third. A swimmer
+    with their arms raised has a box whose upper third is mostly arm, and arm
+    reads as a confident, saturated, completely useless hue.
+
+    Returns None rather than a warm-end hue on purpose. "No cap seen" is a
+    usable answer; "this player's cap is the color of skin" is not, and
+    silently accepting it is how the phase 3 color stage came to report the
+    water as everyone's identity.
     """
     x1, y1, x2, y2 = (int(v) for v in box)
     h = max(1, y2 - y1)
-    crop = frame[max(0, y1):max(1, y1 + int(h * 0.35)), max(0, x1):max(1, x2)]
+    crop = frame[max(0, y1):max(1, y1 + max(6, int(h * 0.20))), max(0, x1):max(1, x2)]
     if crop.size == 0:
         return None
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     H, S, V = hsv[:, :, 0].astype(int), hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
     dh = np.minimum(np.abs(H - WATER_HUE_CV), 180 - np.abs(H - WATER_HUE_CV))
-    m = (S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN)
-    if m.sum() < 60:
+    deg = H * 2
+    colored = (S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN) & (deg >= CAP_LO) & (deg <= CAP_HI)
+    # A white cap is in play (seen in the contact sheet) and has almost no
+    # saturation, so a hue-based test throws it away. It is still perfectly
+    # distinguishable: bright and colorless, which nothing else in the frame is
+    # -- the water is saturated turquoise and skin is saturated warm.
+    white = (S < 55) & (V > 165)
+    if white.sum() > max(120, colored.sum() * 1.4):
+        return -1.0, int(white.sum())          # -1 stands for white
+    if colored.sum() < 40:
         return None
-    return float(np.median(H[m])) * 2, int(m.sum())
+    return float(np.median(deg[colored])), int(colored.sum())
 
 
 def main():
@@ -93,7 +123,11 @@ def main():
     judged = [j for j in json.loads((ROOT / "labels/judged.json").read_text(encoding="utf-8"))
               if j["video"] == args.video and j["label"] != "notshot"]
     judged.sort(key=lambda j: j["t"])
-    shots = judged[:args.shots]
+    shots = judged[args.skip:args.skip + args.shots]
+    # The label export doesn't carry the clock string, so derive it here rather
+    # than re-exporting for one cosmetic field.
+    for j in shots:
+        j.setdefault("clock", f"{int(j['t']) // 60}:{int(j['t']) % 60:02d}")
     print(f"{len(shots)} shots from {args.video}\n")
 
     rig = hoops.rig_for(args.video)
