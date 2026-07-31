@@ -51,6 +51,10 @@ RIMWATCH = {
 # about shooting.
 MISS_LABELS = {"offiron", "behind", "airball", "airnet", "inout"}
 
+# How far a track must fall inside the window before it counts as a shot rather
+# than a ball drifting on the water. Roughly a rim's width.
+MIN_DESCENT_PX = 90
+
 
 def load_hits(video: str) -> dict:
     path = ROOT / RIMWATCH[video]
@@ -73,22 +77,43 @@ def clip_track(hits: list[dict], t0: float, t1: float) -> list[dict] | None:
     # database, where it would masquerade as a measurement.
     if t1 <= t0:
         t1 = t0 + 1.4
-    window = [h for h in hits if t0 - 0.4 <= h["t"] <= t1 + 1.0]
+    # Gather over the clip's PLAYBACK window (clips.py pads 1.2s before the
+    # descent and 2.2s after), not a tight window around the descent. The wider
+    # gather scored better -- it gives the tracker enough of the flight to link
+    # the arc rather than handing the features a stub.
+    window = [h for h in hits if t0 - 1.2 <= h["t"] <= t1 + 2.2]
     if len(window) < 4:
         return None
     tracks = build_tracks(window)
     if not tracks:
         return None
-    # the track with the largest downward travel inside the labeled window
-    best, best_drop = None, -1.0
+    # The descent the clip was CUT AROUND, not the first one visible and not the
+    # biggest. All three readings were tested against the own labels:
+    #
+    #   anchor descent          82.2% accuracy, AUC 0.875
+    #   biggest descent         79.5%, 0.839      (what this code did before)
+    #   first visible descent   69.7%, 0.758
+    #
+    # Review described the rule as "my labels correspond to the first one i see",
+    # and 41% of judged clips do hold more than one real descent, so this
+    # mattered. But the measurement disagrees with the description by a wide
+    # margin, which says the shot he is actually judging is the one the clip is
+    # centered on -- an earlier descent caught in the lead padding reads as
+    # context, not as the subject. Going with the data over the description,
+    # and the gap is far too large to be noise.
+    cands = []
     for tr in tracks:
-        inside = [p for p in tr if t0 - 0.2 <= p["t"] <= t1 + 0.5]
+        inside = [p for p in tr if t0 - 1.2 <= p["t"] <= t1 + 2.2]
         if len(inside) < 3:
             continue
-        drop = max(p["y"] for p in inside) - min(p["y"] for p in inside)
-        if drop > best_drop:
-            best, best_drop = tr, drop
-    return best
+        ys = [p["y"] for p in inside]
+        if max(ys) - min(ys) < MIN_DESCENT_PX:   # drifting, not a shot
+            continue
+        cands.append((abs(inside[ys.index(min(ys))]["t"] - t0), tr))
+    if not cands:
+        return None
+    cands.sort(key=lambda c: c[0])
+    return cands[0][1]
 
 
 def features(track: list[dict], rim: tuple[int, int, int, int]) -> dict | None:
@@ -301,3 +326,60 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def curve():
+    """Is 82% a ceiling, or just where 146 labels get you?
+
+    The whole question of whether this is worth pursuing turns on the shape of
+    this curve. If accuracy is still climbing at the last data point, more of
+    the labeling fixes it and the plan is 'keep labeling'. If it has gone
+    flat, hand-built trajectory features are the limit and the next move is a
+    model that looks at the clip's pixels instead -- a different, larger piece of
+    work. Guessing which of those is true would be an expensive guess.
+
+        python src/makemiss.py --curve
+    """
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+
+    judged = json.loads((ROOT / "labels/judged.json").read_text(encoding="utf-8"))
+    hits_cache: dict[str, dict] = {}
+    rows, ys = [], []
+    for j in judged:
+        if j["label"] not in MISS_LABELS and j["label"] != "make":
+            continue
+        if j["video"] not in RIMWATCH:
+            continue
+        hits_cache.setdefault(j["video"], load_hits(j["video"]))
+        tr = clip_track(hits_cache[j["video"]].get(j["hoop"], []), j["t"], j["tEnd"])
+        if not tr:
+            continue
+        f = features(tr, hoops.rig_for(j["video"]).rims[j["hoop"]])
+        if f:
+            rows.append(f)
+            ys.append(1 if j["label"] == "make" else 0)
+
+    names = sorted(rows[0])
+    X = np.array([[r[k] for k in names] for r in rows], dtype=float)
+    y = np.array(ys)
+    rng = np.random.default_rng(0)
+
+    print(f"learning curve on {len(y)} shots (mean of 8 draws per size)\n")
+    print(f"{'labels':>7}  {'accuracy':>9}  {'AUC':>6}")
+    for frac in (0.25, 0.4, 0.55, 0.7, 0.85, 1.0):
+        n = int(len(y) * frac)
+        accs, aucs = [], []
+        for rep in range(8 if frac < 1.0 else 1):
+            idx = rng.permutation(len(y))[:n] if frac < 1.0 else np.arange(len(y))
+            if len(set(y[idx])) < 2:
+                continue
+            m = GradientBoostingClassifier(random_state=0, n_estimators=200,
+                                           max_depth=2, learning_rate=0.05)
+            cv = StratifiedKFold(5, shuffle=True, random_state=rep)
+            p = cross_val_predict(m, X[idx], y[idx], cv=cv, method="predict_proba")[:, 1]
+            accs.append(((p >= 0.5).astype(int) == y[idx]).mean())
+            aucs.append(roc_auc_score(y[idx], p))
+        print(f"{n:>7}  {np.mean(accs):>8.1%}  {np.mean(aucs):>6.3f}")
