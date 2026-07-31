@@ -107,7 +107,19 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                     events.append((hoop, r))
 
     events.sort(key=lambda e: e[1][0]["t"])
-    return events
+
+    # Two descents at the same hoop whose time ranges OVERLAP get merged. They
+    # may genuinely be two balls, but a reviewer is shown a clip, and two
+    # clips covering the same instant look identical to them -- the marked shot hit exactly
+    # this ("36 and 37 are definitely the same"). One clip covering both is
+    # honest; two near-duplicates waste a decision and pollute the labels.
+    merged = []
+    for hoop, dets in events:
+        if merged and merged[-1][0] == hoop and dets[0]["t"] <= merged[-1][1][-1]["t"]:
+            merged[-1] = (hoop, sorted(merged[-1][1] + dets, key=lambda d: d["t"]))
+        else:
+            merged.append((hoop, dets))
+    return merged
 
 
 MIN_TAIL_S = 1.5   # the outcome must be on screen, whatever else gets cut

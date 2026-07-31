@@ -30,6 +30,7 @@ MAX_MISS = 8        # frames a track survives unmatched (~0.27s of occlusion)
 MIN_TRACK = 3       # shorter than this is noise, not an object
 PREDICT_CAP = 5     # frames of velocity to extrapolate across a gap, at most
 GAP_SLACK_PX = 30   # extra match radius per frame of gap
+MAX_RADIUS_PX = 260 # ceiling on that growth -- see below
 
 
 def build_tracks(hits: list[dict], match_px: float | None = None,
@@ -76,7 +77,12 @@ def build_tracks(hits: list[dict], match_px: float | None = None,
         # fine here: two balls are rarely within a match radius of each other.
         pairs = []
         for ti, (px, py, gap) in enumerate(preds):
-            radius = match_px + GAP_SLACK_PX * max(0, gap - 1)
+            # Ceiling matters. Widening the radius without one fixed a missed
+            # make (a track that split across a dropout) and immediately caused
+            # the opposite failure: after a 10-frame gap the radius reached
+            # 420 px, wide enough to grab the OTHER ball, and one track then
+            # stitched 80 detections across 7.4 seconds of separate shots.
+            radius = min(match_px + GAP_SLACK_PX * max(0, gap - 1), MAX_RADIUS_PX)
             for di, d in enumerate(dets):
                 dist = ((d["x"] - px) ** 2 + (d["y"] - py) ** 2) ** 0.5
                 if dist <= radius:

@@ -20,8 +20,9 @@ import path from "path";
 
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
 const APPLY = process.argv.includes("--apply");
-const VIDEO = "IMG_2403.MOV";
-const CLIPS = "out/clips";
+const argOf = (n, d) => { const i = process.argv.indexOf("--" + n); return i > -1 ? process.argv[i + 1] : d; };
+const VIDEO = argOf("video", "IMG_2403.MOV");
+const CLIPS = argOf("clips", "out/clips");
 
 async function api(method, p, token, body) {
   const isForm = body instanceof FormData;
@@ -54,7 +55,7 @@ console.log(`${index.length} new clips\n`);
 // ball peaks (a minimum in image y, since y grows downward) counts the shots.
 // This doesn't split them -- it tells review when there's more than one to
 // account for, which beats silently pretending a clip holds a single shot.
-const rim = JSON.parse(fs.readFileSync("out/rimwatch_full.json", "utf8"));
+const rim = JSON.parse(fs.readFileSync(argOf("rim", "out/rimwatch_full.json"), "utf8"));
 function arcsIn(clip) {
   const pts = (rim.hits[clip.hoop] || [])
     .filter((h) => h.t >= clip.clip_start && h.t <= clip.clip_stop)
