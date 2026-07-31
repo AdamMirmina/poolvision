@@ -116,6 +116,90 @@ def clip_track(hits: list[dict], t0: float, t1: float) -> list[dict] | None:
     return cands[0][1]
 
 
+# The descents exactly as clips.py found them, per recording and hoop.
+#
+# The bug this replaces: clips.py builds tracks over the WHOLE recording, then
+# finds descents inside each track. makemiss was rebuilding tracks inside a
+# three-second window around the clip. With several balls in the pool those two
+# passes link detections differently, so the features could describe a different
+# object than the descent the clip was cut for.
+#
+# Worse, clips.py MERGES two descents at one hoop whose times overlap -- a fix
+# for the duplicate clips the marked shot hit, and correct for display, but it means the
+# merged event's points come from two different balls. Feeding that to the
+# feature extractor produces a trajectory no ball ever flew.
+#
+# So: reproduce clips.py's own tracking, keep the descents unmerged, and let the
+# caller pick the single one the label belongs to.
+_DESCENTS: dict[tuple, list] = {}
+_TRACKS: dict[tuple, list] = {}
+
+
+def descents_for(video: str, hoop: str) -> list[list[dict]]:
+    key = (video, hoop)
+    if key in _DESCENTS:
+        return _DESCENTS[key]
+    from clips import JITTER_PX, MAX_GAP_S, MIN_DROP_PX
+    from parked import drop_parked
+    hits, _ = drop_parked(load_hits(video).get(hoop, []))
+    out = []
+    for pts in build_tracks(hits):
+        runs, cur = [], [pts[0]]
+        for q in pts[1:]:
+            prev = cur[-1]
+            falling = q["y"] >= prev["y"] - JITTER_PX
+            if q["t"] - prev["t"] > MAX_GAP_S or not falling:
+                runs.append(cur)
+                cur = [q]
+            else:
+                cur.append(q)
+        runs.append(cur)
+        for r in runs:
+            if len(r) >= 3 and (r[-1]["y"] - r[0]["y"]) >= MIN_DROP_PX:
+                out.append(r)
+    out.sort(key=lambda r: r[0]["t"])
+    _DESCENTS[key] = out
+    return out
+
+
+def tracks_for(video: str, hoop: str) -> list[list[dict]]:
+    """Whole flights, from the same tracking pass the descents came from."""
+    key = (video, hoop)
+    if key not in _TRACKS:
+        from parked import drop_parked
+        hits, _ = drop_parked(load_hits(video).get(hoop, []))
+        _TRACKS[key] = build_tracks(hits)
+    return _TRACKS[key]
+
+
+def anchor_descent(video: str, hoop: str, t0: float, whole_flight: bool = True) -> list[dict] | None:
+    """The single descent this clip was cut around.
+
+    Matched on start time, which is exactly what clips.py wrote into the record
+    as `t`. Where two overlapping descents were merged into one clip, this picks
+    the one the timestamp names rather than the blend of both.
+    """
+    cands = descents_for(video, hoop)
+    if not cands:
+        return None
+    best = min(cands, key=lambda r: abs(r[0]["t"] - t0))
+    if abs(best[0]["t"] - t0) > 1.0:
+        return None
+    if not whole_flight:
+        return best
+    # The descent names the object; its whole track carries the rise as well,
+    # and how high the ball was above the rim is one of the stronger signals.
+    # A descent alone begins at the top of the fall, which throws that away.
+    ids = {(d["frame"], round(d["x"], 1)) for d in best}
+    for tr in tracks_for(video, hoop):
+        if any((q["frame"], round(q["x"], 1)) in ids for q in tr):
+            lo, hi = best[0]["t"] - 2.0, best[-1]["t"] + 1.5
+            span = [q for q in tr if lo <= q["t"] <= hi]
+            if len(span) >= len(best):
+                return span
+    return best
+
+
 def features(track: list[dict], rim: tuple[int, int, int, int]) -> dict | None:
     """Rim-relative geometry, scaled by rim width.
 
@@ -223,8 +307,11 @@ def main():
             continue
         if j["video"] not in hits_cache:
             hits_cache[j["video"]] = load_hits(j["video"])
-        hits = hits_cache[j["video"]].get(j["hoop"], [])
-        tr = clip_track(hits, j["t"], j["tEnd"])
+        # The descent the clip was actually cut for, in the same tracking
+        # context that cut it. Re-tracking inside a window scored 76.0%/0.834
+        # against 81.0%/0.852 for this, because with several balls in the pool
+        # the two passes disagree about which detections belong to one object.
+        tr = anchor_descent(j["video"], j["hoop"], j["t"])
         if not tr:
             skipped["no-track"] += 1
             continue
