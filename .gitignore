@@ -39,3 +39,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Judged clips are ground truth review produced by hand -- the most expensive
+# artifact in this repo. Keep it versioned.
+!labels/judged.json

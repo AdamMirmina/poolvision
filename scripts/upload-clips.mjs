@@ -77,6 +77,13 @@ for (const c of index) {
   fd.set("video", VIDEO);
   fd.set("n", String(c.n));
   fd.set("t", String(c.t));
+  // tEnd was missing here until 2026-07-31, so all 128 of IMG_2481's records
+  // stored 0. Nothing broke visibly -- review only reads `t` -- but every
+  // later attempt to pull a clip's detections back out of the rim pass searched
+  // the window [t, 0] and found nothing, which stranded 119 of the labels
+  // when they were first used for training.
+  fd.set("tEnd", String(c.t_end));
+  fd.set("durationS", (c.frames / 30).toFixed(2));
   fd.set("clock", c.clock);
   fd.set("hoop", c.hoop);
   fd.set("dets", String(c.dets));
