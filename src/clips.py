@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops import rig_for  # noqa: E402
 from parked import drop_parked  # noqa: E402
+from tracks import build_tracks  # noqa: E402
 
 import imageio_ffmpeg
 
@@ -86,22 +87,24 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
         hits, dropped = drop_parked(hits)
         if dropped:
             print(f"  {hoop}: dropped {dropped} detections of ball(s) sitting still")
-        pts = sorted(hits, key=lambda h: h["t"])
-        if not pts:
-            continue
-        runs, cur = [], [pts[0]]
-        for p in pts[1:]:
-            prev = cur[-1]
-            falling = p["y"] >= prev["y"] - JITTER_PX
-            if p["t"] - prev["t"] > MAX_GAP_S or not falling:
-                runs.append(cur)
-                cur = [p]
-            else:
-                cur.append(p)
-        runs.append(cur)
-        for r in runs:
-            if len(r) >= min_dets and (r[-1]["y"] - r[0]["y"]) >= MIN_DROP_PX:
-                events.append((hoop, r))
+
+        # Descents are found WITHIN a track, never across the merged detection
+        # stream. With more than one ball on screen a merged stream hops between
+        # objects and shreds one descent into many fragments -- see tracks.py.
+        for pts in build_tracks(hits):
+            runs, cur = [], [pts[0]]
+            for p in pts[1:]:
+                prev = cur[-1]
+                falling = p["y"] >= prev["y"] - JITTER_PX
+                if p["t"] - prev["t"] > MAX_GAP_S or not falling:
+                    runs.append(cur)
+                    cur = [p]
+                else:
+                    cur.append(p)
+            runs.append(cur)
+            for r in runs:
+                if len(r) >= min_dets and (r[-1]["y"] - r[0]["y"]) >= MIN_DROP_PX:
+                    events.append((hoop, r))
 
     events.sort(key=lambda e: e[1][0]["t"])
     return events
