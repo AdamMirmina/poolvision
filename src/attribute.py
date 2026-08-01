@@ -269,6 +269,16 @@ def main():
                      "hue": (round(hue, 1) if hue is not None else None)})
     cap.release()
 
+    # Written BEFORE anything is printed.
+    #
+    # An hour of compute was lost tonight because the summary crashed on a
+    # `hue: None` row and the results had not been saved yet. The expensive
+    # thing is the detection; a report is cheap and can be regenerated. Never
+    # let a formatting bug destroy a run again.
+    out_path = ROOT / f"out/attribute_{args.video.replace('.MOV','')}.json"
+    out_path.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    print(f"wrote {out_path.name} ({len(rows)} shots)\n")
+
     print(f"{'stage':<34} {'shots':>6}")
     for k in ("shots", "ball seen in flight", "release point found",
               "person found near release", "cap color read"):
@@ -284,13 +294,14 @@ def main():
             extra = f"  shooter {r['dist']}px from the ball"
         print(f"  {r['clock']:>6}  {r['stage']}{extra}")
 
-    hues = [r["hue"] for r in rows if "hue" in r]
+    # `hue` is None whenever no cap could be read, and None // 30 raises. This
+    # is the line that killed the IMG_2482 run.
+    hues = [r["hue"] for r in rows if r.get("hue") is not None]
     if len(hues) >= 3:
         bins = Counter(int(h // 30) * 30 for h in hues)
         print(f"\ncap hues found: {sorted(bins.items())}")
         print(f"distinct 30-degree bands: {len(bins)} across {len(hues)} attributed shots")
 
-    (ROOT / f"out/attribute_{args.video.replace('.MOV','')}.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":
