@@ -229,7 +229,19 @@ def main():
         # flight, extrapolate back to where it began, and the shooter is whoever
         # is standing there. A defender beside the ball's path is not at the
         # start of it, and no threshold has to be tuned to know that.
-        ball_tracks = build_ball_tracks(sorted(balls, key=lambda b: b["frame"]))
+        # build_tracks speaks "frame"; these carry "f". Translating here rather
+        # than renaming the field, which is used in half a dozen other places.
+        ball_pts = [{"frame": b["f"], "t": b["f"] / fps, "x": b["x"], "y": b["y"],
+                     "conf": b.get("conf", 0.5)} for b in sorted(balls, key=lambda z: z["f"])]
+        # A wider match radius than tracks.py's default. That default was tuned
+        # for the rim crop, where the ball creeps a few pixels between frames.
+        # Across the whole pool, sampled every third frame, a shot covers 200+
+        # pixels per sample and the 150px default breaks one flight into
+        # fragments -- on one shot the ball's arrival at the hoop ended up in a
+        # 4-point stub, one below what the fitter needs. Measured: 250px takes
+        # arcs found from 2 of 10 to 4 of 10, and wider than that changes
+        # nothing, because the rest fail for a different reason entirely.
+        ball_tracks = build_ball_tracks(ball_pts, match_px=250)
         if not ball_tracks:
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                          "stage": "ball never tracked"})
@@ -271,10 +283,12 @@ def main():
         # The shooter is whoever is standing where the flight began.
         cands = []
         for ti, tr in enumerate(tracks):
-            near = [q for q in tr if abs(q["t"] - rel_t) <= 0.25]
+            # Person tracks are stamped with frames, not seconds -- only the
+            # ball points were translated for the tracker.
+            near = [q for q in tr if abs(q["f"] / fps - rel_t) <= 0.25]
             if not near:
                 continue
-            q = min(near, key=lambda z: abs(z["t"] - rel_t))
+            q = min(near, key=lambda z: abs(z["f"] / fps - rel_t))
             x1b, y1b, x2b, y2b = q["box"]
             # Distance to the BOX, not to its center: a shooter's arms are up and
             # the ball leaves above their head, which is far from their middle
