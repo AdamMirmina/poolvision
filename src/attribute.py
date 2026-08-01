@@ -211,23 +211,26 @@ def main():
         stage["person found near release"] += 1
 
         if args.save:
-            # A CLIP of the release, not a still.
+            # The shooter crop now spans the SAME window as the wide clip
+            # (wideclips.py: 2.6s before the descent to 1.4s after it), not a
+            # short window around the release.
             #
-            # The shot clips already in review are cropped to the rim, so
-            # they cannot show who threw the ball -- the shooter is thirty feet
-            # outside that frame. And a still of a person proves nothing either:
-            # confirming attribution means seeing the ball actually leave THIS
-            # person's hands, which only exists in motion.
+            # Two clips of the same moment with
+            # different start times and lengths cannot be compared -- the eye
+            # has to re-sync on every loop. Same window means the same frame
+            # index is the same instant in both, so the player can drive one
+            # from the other.
             bx1, by1, bx2, by2 = (int(v) for v in shooter["box"])
             cxm, cym = (bx1 + bx2) // 2, (by1 + by2) // 2
-            half = max(260, int((by2 - by1) * 0.9))
+            half = max(300, int((by2 - by1) * 1.0))
             rx1, ry1 = max(0, cxm - half), max(0, cym - half)
             rx2, ry2 = min(3840, cxm + half), min(2160, cym + half)
             d = ROOT / "out/shooter_clips"
             d.mkdir(parents=True, exist_ok=True)
             name = f"{args.video.replace('.MOV','')}_{j['n']}.mp4"
-            f0 = max(0, rel["f"] - int(0.7 * fps))
-            f1 = rel["f"] + int(0.9 * fps)
+            t1_ = float(j["tEnd"]) if float(j.get("tEnd") or 0) > float(j["t"]) else float(j["t"]) + 1.0
+            f0 = max(0, int((float(j["t"]) - 2.6) * fps))
+            f1 = int((t1_ + 1.4) * fps)
             w, h = (rx2 - rx1) // 2 * 2, (ry2 - ry1) // 2 * 2
             import imageio_ffmpeg, subprocess
             ff = imageio_ffmpeg.get_ffmpeg_exe()
@@ -235,7 +238,7 @@ def main():
                 [ff, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
                  "-s", f"{w}x{h}", "-r", f"{fps:.3f}", "-i", "-",
                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-                 "-pix_fmt", "yuv420p", str(d / name)],
+                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(d / name)],
                 stdin=subprocess.PIPE)
             wrote = 0
             for ff_i in range(f0, f1):
@@ -251,11 +254,14 @@ def main():
                 stage["release clip written"] += 1
         hue = cap_hue(shooter["frame"], shooter["box"], np, cv2)
         if not hue:
-            rows.append({"clock": j["clock"], "stage": "shooter found, no cap color", "dist": round(dist)})
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "shooter found, no cap color", "dist": round(dist),
+                         "releaseT": round(rel["f"] / fps, 2)})
             continue
         stage["cap color read"] += 1
         rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                      "stage": "attributed", "dist": round(dist),
+                     "releaseT": round(rel["f"] / fps, 2),
                      "hue": round(hue[0]), "px": hue[1]})
     cap.release()
 
