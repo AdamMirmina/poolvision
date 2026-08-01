@@ -60,6 +60,8 @@ def parse_args():
                    help="skip this many shots first. The caps go on partway through "
                         "IMG_2481, and the first run took the earliest 20 shots, which "
                         "are all bare-headed -- a clean pipeline reporting a real zero.")
+    p.add_argument("--save", action="store_true",
+                   help="write a crop of the identified shooter per shot, to confirm")
     p.add_argument("--lookback", type=float, default=2.0,
                    help="seconds before the descent to search for the release")
     return p.parse_args()
@@ -170,29 +172,90 @@ def main():
             continue
         stage["ball seen in flight"] += 1
 
-        # The release is the earliest sighting far enough from the rim to be a
-        # throw rather than the shot arriving.
+        # The release is the LAST time the ball is with a person before it
+        # leaves for the hoop, not the first time it is far from the rim.
+        #
+        # The earlier rule caught passes. Looking at a generated clip showed the
+        # ball traveling TOWARD the identified player rather than away from
+        # him: it had found the moment a pass was in the air and credited the
+        # receiver's neighbour. In a game the ball is caught and then shot, so
+        # the first far sighting is routinely somebody else entirely.
         far = [b for b in balls if ((b["x"] - rimx) ** 2 + (b["y"] - rimy) ** 2) ** 0.5 > 400]
         if not far:
             rows.append({"clock": j["clock"], "stage": "ball never far from the rim"})
             continue
-        rel = min(far, key=lambda b: b["f"])
+        contacts = []
+        for b in far:
+            near_b = [q for q in people if abs(q["f"] - b["f"]) <= 3]
+            if not near_b:
+                continue
+            closest = min(near_b, key=lambda q: ((q["x"] - b["x"]) ** 2 + (q["y"] - b["y"]) ** 2) ** 0.5)
+            d = ((closest["x"] - b["x"]) ** 2 + (closest["y"] - b["y"]) ** 2) ** 0.5
+            if d < 260:                      # the ball is at someone's hands
+                contacts.append((b, closest, d))
+        if contacts:
+            rel, shooter_hint, _ = max(contacts, key=lambda c: c[0]["f"])
+        else:
+            rel, shooter_hint = min(far, key=lambda b: b["f"]), None
         stage["release point found"] += 1
 
-        near = [p for p in people if abs(p["f"] - rel["f"]) <= 6]
-        if not near:
-            rows.append({"clock": j["clock"], "stage": "nobody detected near the release"})
-            continue
-        shooter = min(near, key=lambda p: ((p["x"] - rel["x"]) ** 2 + (p["y"] - rel["y"]) ** 2) ** 0.5)
+        if shooter_hint is not None:
+            shooter = shooter_hint          # whoever the ball was last with
+        else:
+            near = [p for p in people if abs(p["f"] - rel["f"]) <= 6]
+            if not near:
+                rows.append({"clock": j["clock"], "stage": "nobody detected near the release"})
+                continue
+            shooter = min(near, key=lambda p: ((p["x"] - rel["x"]) ** 2 + (p["y"] - rel["y"]) ** 2) ** 0.5)
         dist = ((shooter["x"] - rel["x"]) ** 2 + (shooter["y"] - rel["y"]) ** 2) ** 0.5
         stage["person found near release"] += 1
 
+        if args.save:
+            # A CLIP of the release, not a still.
+            #
+            # The shot clips already in review are cropped to the rim, so
+            # they cannot show who threw the ball -- the shooter is thirty feet
+            # outside that frame. And a still of a person proves nothing either:
+            # confirming attribution means seeing the ball actually leave THIS
+            # person's hands, which only exists in motion.
+            bx1, by1, bx2, by2 = (int(v) for v in shooter["box"])
+            cxm, cym = (bx1 + bx2) // 2, (by1 + by2) // 2
+            half = max(260, int((by2 - by1) * 0.9))
+            rx1, ry1 = max(0, cxm - half), max(0, cym - half)
+            rx2, ry2 = min(3840, cxm + half), min(2160, cym + half)
+            d = ROOT / "out/shooter_clips"
+            d.mkdir(parents=True, exist_ok=True)
+            name = f"{args.video.replace('.MOV','')}_{j['n']}.mp4"
+            f0 = max(0, rel["f"] - int(0.7 * fps))
+            f1 = rel["f"] + int(0.9 * fps)
+            w, h = (rx2 - rx1) // 2 * 2, (ry2 - ry1) // 2 * 2
+            import imageio_ffmpeg, subprocess
+            ff = imageio_ffmpeg.get_ffmpeg_exe()
+            proc = subprocess.Popen(
+                [ff, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+                 "-s", f"{w}x{h}", "-r", f"{fps:.3f}", "-i", "-",
+                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+                 "-pix_fmt", "yuv420p", str(d / name)],
+                stdin=subprocess.PIPE)
+            wrote = 0
+            for ff_i in range(f0, f1):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, ff_i)
+                ok2, fr2 = cap.read()
+                if not ok2:
+                    break
+                proc.stdin.write(fr2[ry1:ry1 + h, rx1:rx1 + w].tobytes())
+                wrote += 1
+            proc.stdin.close()
+            proc.wait()
+            if wrote:
+                stage["release clip written"] += 1
         hue = cap_hue(shooter["frame"], shooter["box"], np, cv2)
         if not hue:
             rows.append({"clock": j["clock"], "stage": "shooter found, no cap color", "dist": round(dist)})
             continue
         stage["cap color read"] += 1
-        rows.append({"clock": j["clock"], "stage": "attributed", "dist": round(dist),
+        rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                     "stage": "attributed", "dist": round(dist),
                      "hue": round(hue[0]), "px": hue[1]})
     cap.release()
 
@@ -216,7 +279,7 @@ def main():
         print(f"\ncap hues found: {sorted(bins.items())}")
         print(f"distinct 30-degree bands: {len(bins)} across {len(hues)} attributed shots")
 
-    (ROOT / "out/attribute_pilot.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
+    (ROOT / f"out/attribute_{args.video.replace('.MOV','')}.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":
