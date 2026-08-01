@@ -46,12 +46,24 @@ def cap_in_box(frame, box, cv2, np):
     H, S, V = hsv[:, :, 0].astype(int), hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
     dh = np.minimum(np.abs(H - WATER_CV), 180 - np.abs(H - WATER_CV))
     deg = H * 2
+    # Three kinds of cap, three tests. A hue test alone sees only the first.
+    #
+    # review is planning a black and a white cap tonight, and black would have
+    # come back as "no cap read" -- it is neither saturated nor bright, so
+    # nothing here was looking for it. Better to find that in the code than in
+    # the footage.
+    #
+    # The risk with black is that dark wet hair is also dark, so this leans on
+    # shape harder than the others: hair is not a compact round blob sitting
+    # high in the head box, a cap is. Reported separately as -2 so a black
+    # reading can be audited rather than blending into the rest.
     masks = [
-        (((S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN) & (deg >= 32) & (deg <= 300)).astype(np.uint8), False),
-        (((S < 50) & (V > 180)).astype(np.uint8), True),
+        (((S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN) & (deg >= 32) & (deg <= 300)).astype(np.uint8), "color"),
+        (((S < 50) & (V > 180)).astype(np.uint8), "white"),
+        (((V < 70) & (S < 120)).astype(np.uint8), "black"),
     ]
     best = None
-    for m, is_white in masks:
+    for m, kind in masks:
         m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
         n, lab, stats, cent = cv2.connectedComponentsWithStats(m, 8)
         for i in range(1, n):
@@ -66,9 +78,13 @@ def cap_in_box(frame, box, cv2, np):
             cy = cent[i][1]
             if cy > sub.shape[0] * 0.75:
                 continue                       # a cap sits high in the head box
-            score = area * (1.0 if not is_white else 0.75)
+            # A saturated color is the most trustworthy signal, white next,
+            # black last -- it has the most competition from hair and shadow.
+            weight = {"color": 1.0, "white": 0.75, "black": 0.55}[kind]
+            score = area * weight
             if best is None or score > best[0]:
-                best = (score, -1.0 if is_white else float(np.median(deg[lab == i])))
+                val = {"white": -1.0, "black": -2.0}.get(kind)
+                best = (score, val if val is not None else float(np.median(deg[lab == i])))
     return None if best is None else best[1]
 
 
@@ -109,15 +125,16 @@ def main():
             continue
         band = {}
         for v in votes:
-            band.setdefault("white" if v < 0 else int(v // 30) * 30, []).append(v)
+            key = "white" if v == -1.0 else "black" if v == -2.0 else int(v // 30) * 30
+            band.setdefault(key, []).append(v)
         top = max(band.items(), key=lambda kv: len(kv[1]))
-        hue = -1.0 if top[0] == "white" else float(np.median(top[1]))
+        hue = top[1][0] if top[0] in ("white", "black") else float(np.median(top[1]))
         out.append({"n": r["n"], "hue": round(hue, 1), "agree": f"{len(top[1])}/{len(votes)}"})
 
     got = [o for o in out if o["hue"] is not None]
     bands = {}
     for o in got:
-        k = "white" if o["hue"] < 0 else int(o["hue"] // 30) * 30
+        k = "white" if o["hue"] == -1.0 else "black" if o["hue"] == -2.0 else int(o["hue"] // 30) * 30
         bands[k] = bands.get(k, 0) + 1
     print(f"{len(got)} of {len(out)} shooters given a cap color")
     for k, v in sorted(bands.items(), key=lambda kv: -kv[1]):
