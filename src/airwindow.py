@@ -52,6 +52,10 @@ for j in judged:
     # Prefer the real release. Fall back to the track's first sighting near the
     # hoop, and say so in the output rather than pretending they are the same.
     known = RELEASE.get((j["video"], int(j["n"])))
+    # A release after the descent has begun is not a release; refuse it rather
+    # than drawing a band that runs backwards.
+    if known is not None and known >= float(j["t"]):
+        known = None
     t0 = known if known is not None else min(p["t"] for p in flight)
     src = "release" if known is not None else "first sighting near the hoop"
     t1 = max(desc[-1]["t"], max(p["t"] for p in flight if p["t"] <= desc[-1]["t"] + 0.5))

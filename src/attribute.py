@@ -214,6 +214,21 @@ def main():
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                          "stage": "ball never far from the rim"})
             continue
+        # Contacts BEFORE the ball starts falling toward the hoop. Nothing that
+        # happens after it can be the release.
+        #
+        # This rule used to be safe by accident: the search window ended at the
+        # descent, so "the latest contact" could not be a later one. Widening
+        # the window to track people across the whole clip removed that
+        # accident, and 73 of 91 releases on IMG_2482 came back AFTER the shot
+        # had begun falling -- crediting whoever caught the rebound. The tell
+        # was a flight time of minus 2.27 seconds, which is not a thing.
+        f_release_max = float(j["t"]) * fps
+        far = [b for b in far if b["f"] <= f_release_max]
+        if not far:
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "ball never in anyone's hands before the shot"})
+            continue
         best_tr, best_f, best_d = None, -1, None
         for b in far:
             for tr in tracks:
