@@ -47,7 +47,7 @@ def main():
 
     attributed = json.loads((ROOT / f"out/attribute_{args.video}.json").read_text(encoding="utf-8"))
     wanted = {int(r["n"]) for r in attributed if r.get("stage") == "attributed" and r.get("n") is not None}
-    judged = {int(j["n"]): j for j in json.loads((ROOT / "labels/judged.json").read_text(encoding="utf-8"))
+    judged = {int(j["n"]): j for j in json.loads(((ROOT / "labels/allshots.json" if (ROOT / "labels/allshots.json").exists() else ROOT / "labels/judged.json")).read_text(encoding="utf-8"))
               if j["video"] == args.video + ".MOV"}
 
     out = ROOT / args.out

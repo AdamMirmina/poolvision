@@ -21,7 +21,7 @@ import hoops, makemiss as M
 PAD = 0.28      # widen the box a little so the ring frames the hoop, not hides it
 
 out = []
-for j in json.load(open("labels/judged.json")):
+for j in json.load(open("labels/allshots.json")):
     if j["video"] not in M.RIMWATCH:
         continue
     try:

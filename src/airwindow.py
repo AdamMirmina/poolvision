@@ -36,7 +36,7 @@ RIM_LEAD, MIN_LEAD = 1.2, 0.3      # clips.py
 WIDE_LEAD = 2.6                    # wideclips.py
 MAX_FLIGHT = 3.0                   # longer than this is the tracker, not a ball
 
-judged = json.load(open("labels/judged.json"))
+judged = json.load(open("labels/allshots.json"))
 out, missing = [], 0
 for j in judged:
     if j["video"] not in M.RIMWATCH:

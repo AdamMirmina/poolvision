@@ -122,8 +122,11 @@ def main():
 
     import makemiss as M
 
-    judged = [j for j in json.loads((ROOT / "labels/judged.json").read_text(encoding="utf-8"))
-              if j["video"] == args.video and j["label"] != "notshot"]
+    src = ROOT / "labels/allshots.json"
+    if not src.exists():
+        src = ROOT / "labels/judged.json"
+    judged = [j for j in json.loads(src.read_text(encoding="utf-8"))
+              if j["video"] == args.video and j.get("label") != "notshot"]
     judged.sort(key=lambda j: j["t"])
     shots = judged[args.skip:args.skip + args.shots]
     # The label export doesn't carry the clock string, so derive it here rather
@@ -144,13 +147,21 @@ def main():
         rim = rig.rims[j["hoop"]]
         rimx, rimy = (rim[0] + rim[2]) / 2, (rim[1] + rim[3]) / 2
 
-        f_end = int(j["t"] * fps)
-        f_start = max(0, int((j["t"] - args.lookback) * fps))
-        # Every 3rd frame: the ball moves far enough between them to trace an
-        # arc, and this is a pilot, not the production pass.
-        frames = list(range(f_start, f_end + 1, 3))
+        # The WHOLE clip window, not just the run-up.
+        #
+        # review, watching the magnifier glitch: "if the person is moving around
+        # during the clip, we'd have to track them as they move and it's not
+        # properly done so when they're out of the frame slice they just glitch."
+        # Exactly right. A single box cannot follow someone who moves, and in a
+        # pool everyone moves. So the shooter is TRACKED across the clip and the
+        # output is a path, not a point.
+        t1_ = float(j["tEnd"]) if float(j.get("tEnd") or 0) > float(j["t"]) else float(j["t"]) + 1.0
+        f_lo = max(0, int((float(j["t"]) - 2.6) * fps))
+        f_hi = int((t1_ + 1.4) * fps)
+        clip_t0 = f_lo / fps
+        frames = list(range(f_lo, f_hi + 1, 3))
 
-        balls, people = [], []
+        per_frame = []          # [(frame, [people boxes], [balls])]
         for f in frames:
             cap.set(cv2.CAP_PROP_POS_FRAMES, f)
             ok, fr = cap.read()
@@ -158,111 +169,104 @@ def main():
                 continue
             r = model.predict(fr, conf=0.20, verbose=False, classes=[SPORTS_BALL, PERSON],
                               imgsz=1280)[0]
+            ppl, balls_f = [], []
             for b in r.boxes:
                 x1, y1, x2, y2 = b.xyxy[0].tolist()
                 cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-                cls = int(b.cls[0])
-                if cls == SPORTS_BALL and POOL[0] <= cx <= POOL[2] and POOL[1] <= cy <= POOL[3]:
-                    balls.append({"f": f, "x": cx, "y": cy, "conf": float(b.conf[0])})
-                elif cls == PERSON and POOL[0] <= cx <= POOL[2] and POOL[1] <= cy <= POOL[3]:
-                    people.append({"f": f, "box": (x1, y1, x2, y2), "x": cx, "y": cy, "frame": fr})
+                if not (POOL[0] <= cx <= POOL[2] and POOL[1] <= cy <= POOL[3]):
+                    continue
+                if int(b.cls[0]) == PERSON:
+                    ppl.append({"box": (x1, y1, x2, y2), "x": cx, "y": cy})
+                else:
+                    balls_f.append({"x": cx, "y": cy, "conf": float(b.conf[0])})
+            per_frame.append((f, ppl, balls_f, fr))
 
+        balls = [dict(b, f=f) for f, _, bs, _ in per_frame for b in bs]
         if not balls:
-            rows.append({"clock": j["clock"], "stage": "no ball in open water"})
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "no ball in open water"})
             continue
         stage["ball seen in flight"] += 1
 
-        # The release is the LAST time the ball is with a person before it
-        # leaves for the hoop, not the first time it is far from the rim.
-        #
-        # The earlier rule caught passes. Looking at a generated clip showed the
-        # ball traveling TOWARD the identified player rather than away from
-        # him: it had found the moment a pass was in the air and credited the
-        # receiver's neighbour. In a game the ball is caught and then shot, so
-        # the first far sighting is routinely somebody else entirely.
+        # Track people across the clip: nearest neighbour, which is enough when
+        # swimmers are far apart relative to how far they move between samples.
+        tracks = []
+        for f, ppl, _, _ in per_frame:
+            for pp in ppl:
+                best, bd = None, 1e9
+                for tr in tracks:
+                    last = tr[-1]
+                    if last["f"] >= f:
+                        continue
+                    gap = (f - last["f"]) / 3
+                    if gap > 3:
+                        continue
+                    d = ((pp["x"] - last["x"]) ** 2 + (pp["y"] - last["y"]) ** 2) ** 0.5
+                    if d < 220 * gap and d < bd:
+                        best, bd = tr, d
+                (best if best is not None else tracks.append([]) or tracks[-1]).append(dict(pp, f=f))
+
+        # The shooter: the track holding the ball latest, before it leaves for
+        # the hoop. Same rule as before -- a pass would otherwise credit whoever
+        # the ball happened to be flying past.
         far = [b for b in balls if ((b["x"] - rimx) ** 2 + (b["y"] - rimy) ** 2) ** 0.5 > 400]
         if not far:
-            rows.append({"clock": j["clock"], "stage": "ball never far from the rim"})
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "ball never far from the rim"})
             continue
-        contacts = []
+        best_tr, best_f, best_d = None, -1, None
         for b in far:
-            near_b = [q for q in people if abs(q["f"] - b["f"]) <= 3]
-            if not near_b:
-                continue
-            closest = min(near_b, key=lambda q: ((q["x"] - b["x"]) ** 2 + (q["y"] - b["y"]) ** 2) ** 0.5)
-            d = ((closest["x"] - b["x"]) ** 2 + (closest["y"] - b["y"]) ** 2) ** 0.5
-            if d < 260:                      # the ball is at someone's hands
-                contacts.append((b, closest, d))
-        if contacts:
-            rel, shooter_hint, _ = max(contacts, key=lambda c: c[0]["f"])
-        else:
-            rel, shooter_hint = min(far, key=lambda b: b["f"]), None
+            for tr in tracks:
+                near = [q for q in tr if abs(q["f"] - b["f"]) <= 3]
+                if not near:
+                    continue
+                q = min(near, key=lambda z: ((z["x"] - b["x"]) ** 2 + (z["y"] - b["y"]) ** 2) ** 0.5)
+                d = ((q["x"] - b["x"]) ** 2 + (q["y"] - b["y"]) ** 2) ** 0.5
+                if d < 260 and b["f"] > best_f:
+                    best_tr, best_f, best_d = tr, b["f"], d
+        if best_tr is None:
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "nobody was holding the ball"})
+            continue
         stage["release point found"] += 1
-
-        if shooter_hint is not None:
-            shooter = shooter_hint          # whoever the ball was last with
-        else:
-            near = [p for p in people if abs(p["f"] - rel["f"]) <= 6]
-            if not near:
-                rows.append({"clock": j["clock"], "stage": "nobody detected near the release"})
-                continue
-            shooter = min(near, key=lambda p: ((p["x"] - rel["x"]) ** 2 + (p["y"] - rel["y"]) ** 2) ** 0.5)
-        dist = ((shooter["x"] - rel["x"]) ** 2 + (shooter["y"] - rel["y"]) ** 2) ** 0.5
         stage["person found near release"] += 1
 
-        if args.save:
-            # The shooter crop now spans the SAME window as the wide clip
-            # (wideclips.py: 2.6s before the descent to 1.4s after it), not a
-            # short window around the release.
-            #
-            # Two clips of the same moment with
-            # different start times and lengths cannot be compared -- the eye
-            # has to re-sync on every loop. Same window means the same frame
-            # index is the same instant in both, so the player can drive one
-            # from the other.
-            bx1, by1, bx2, by2 = (int(v) for v in shooter["box"])
-            cxm, cym = (bx1 + bx2) // 2, (by1 + by2) // 2
-            half = max(300, int((by2 - by1) * 1.0))
-            rx1, ry1 = max(0, cxm - half), max(0, cym - half)
-            rx2, ry2 = min(3840, cxm + half), min(2160, cym + half)
-            d = ROOT / "out/shooter_clips"
-            d.mkdir(parents=True, exist_ok=True)
-            name = f"{args.video.replace('.MOV','')}_{j['n']}.mp4"
-            t1_ = float(j["tEnd"]) if float(j.get("tEnd") or 0) > float(j["t"]) else float(j["t"]) + 1.0
-            f0 = max(0, int((float(j["t"]) - 2.6) * fps))
-            f1 = int((t1_ + 1.4) * fps)
-            w, h = (rx2 - rx1) // 2 * 2, (ry2 - ry1) // 2 * 2
-            import imageio_ffmpeg, subprocess
-            ff = imageio_ffmpeg.get_ffmpeg_exe()
-            proc = subprocess.Popen(
-                [ff, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                 "-s", f"{w}x{h}", "-r", f"{fps:.3f}", "-i", "-",
-                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(d / name)],
-                stdin=subprocess.PIPE)
-            wrote = 0
-            for ff_i in range(f0, f1):
-                cap.set(cv2.CAP_PROP_POS_FRAMES, ff_i)
-                ok2, fr2 = cap.read()
-                if not ok2:
-                    break
-                proc.stdin.write(fr2[ry1:ry1 + h, rx1:rx1 + w].tobytes())
-                wrote += 1
-            proc.stdin.close()
-            proc.wait()
-            if wrote:
-                stage["release clip written"] += 1
-        hue = cap_hue(shooter["frame"], shooter["box"], np, cv2)
-        if not hue:
-            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
-                         "stage": "shooter found, no cap color", "dist": round(dist),
-                         "releaseT": round(rel["f"] / fps, 2)})
-            continue
-        stage["cap color read"] += 1
+        # The path, as shares of the frame, timed from the clip's own start.
+        path = []
+        for q in best_tr:
+            x1, y1, x2, y2 = q["box"]
+            pad = (y2 - y1) * 0.18
+            x1, y1 = max(0.0, x1 - pad), max(0.0, y1 - pad)
+            x2, y2 = min(3840.0, x2 + pad), min(2160.0, y2 + pad)
+            path.append([round(q["f"] / fps - clip_t0, 2),
+                         round(x1 / 3840 * 100, 2), round(y1 / 2160 * 100, 2),
+                         round((x2 - x1) / 3840 * 100, 2), round((y2 - y1) / 2160 * 100, 2)])
+
+        # Cap color, voted across the frames the shooter appears in, so one bad
+        # look cannot decide who someone is.
+        votes = []
+        for f, _, _, fr in per_frame:
+            q = next((z for z in best_tr if z["f"] == f), None)
+            if not q:
+                continue
+            hv = cap_hue(fr, q["box"], np, cv2)
+            if hv:
+                votes.append(hv[0])
+        hue = None
+        if votes:
+            band = {}
+            for v in votes:
+                band.setdefault("white" if v < 0 else int(v // 30) * 30, []).append(v)
+            top = max(band.items(), key=lambda kv: len(kv[1]))
+            hue = -1.0 if top[0] == "white" else float(np.median(top[1]))
+            stage["cap color read"] += 1
+
         rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
-                     "stage": "attributed", "dist": round(dist),
-                     "releaseT": round(rel["f"] / fps, 2),
-                     "hue": round(hue[0]), "px": hue[1]})
+                     "stage": "attributed",
+                     "releaseT": round(best_f / fps, 2),
+                     "dist": round(best_d),
+                     "shooterPath": path,
+                     "hue": (round(hue, 1) if hue is not None else None)})
     cap.release()
 
     print(f"{'stage':<34} {'shots':>6}")
@@ -273,8 +277,9 @@ def main():
     print("\nper shot:")
     for r in rows:
         extra = ""
-        if "hue" in r:
-            extra = f"  hue {r['hue']}deg from {r['px']}px, shooter {r['dist']}px from the ball"
+        if r.get("hue") is not None:
+            extra = (f"  hue {r['hue']}deg, {len(r.get('shooterPath') or [])} tracked positions, "
+                     f"ball {r['dist']}px from them")
         elif "dist" in r:
             extra = f"  shooter {r['dist']}px from the ball"
         print(f"  {r['clock']:>6}  {r['stage']}{extra}")
