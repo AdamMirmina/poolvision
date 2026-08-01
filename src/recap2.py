@@ -32,14 +32,41 @@ def parse_args():
     return p.parse_args()
 
 
+# The stored path box is PADDED: attribute.py adds 0.18 x the person's height on
+# every side so the tracker keeps hold of someone who moves. That padding has to
+# be removed before looking for a head, and forgetting to remove it is the bug
+# review found -- "the model says clip follows a different person than whatever cap
+# it says". Searching the top 30% of a padded box lands above the head, on water,
+# on the deck, and from this camera angle on whoever is standing BEHIND the
+# shooter, since further away means higher in frame.
+PAD_FRAC = 0.18
+
+
+def person_core(x, y, w, h):
+    """Undo the padding: the real person inside a padded box.
+
+    Both pads are a fraction of the person's HEIGHT, including the horizontal
+    one, so a tall narrow swimmer ends up with a box far wider than they are.
+    Stored height is H(1 + 2p); stored width is W + 2pH.
+    """
+    real_h = h / (1 + 2 * PAD_FRAC)
+    inset = PAD_FRAC * real_h
+    return x + inset, y + inset, w - 2 * inset, real_h
+
+
 def cap_in_box(frame, box, cv2, np):
-    """The cap inside one person's box, by shape rather than by pixel count."""
+    """The cap on one person, by shape rather than by pixel count."""
     x1, y1, x2, y2 = box
-    h = max(2, y2 - y1)
-    # The head: the top quarter of the box, and only that. Below it is shoulders,
-    # arms and water, all of which have opinions about color and none of which
-    # are a cap.
-    sub = frame[max(0, y1):max(2, y1 + int(h * 0.30)), max(0, x1):max(2, x2)]
+    cx1, cy1, cw, ch = person_core(x1, y1, x2 - x1, y2 - y1)
+    x1, y1 = int(cx1), int(cy1)
+    h = max(2, int(ch))
+    x2 = int(cx1 + cw)
+    # The head, and only the head: the top third of the REAL person, and the
+    # middle 60% of their width. A cap is centered on a head; anything out at the
+    # edges belongs to somebody else.
+    side = cw * 0.20
+    sub = frame[max(0, y1):max(2, y1 + int(h * 0.34)),
+                max(0, int(x1 + side)):max(2, int(x2 - side))]
     if sub.size == 0 or sub.shape[0] < 4 or sub.shape[1] < 4:
         return None
     hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
