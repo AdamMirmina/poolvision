@@ -36,7 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import hoops
-from arc import release as arc_release, polyline, at as arc_at
+from arc import release as arc_release, polyline, at as arc_at, origin_at_person
 from tracks import build_tracks as build_ball_tracks
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -241,27 +241,56 @@ def main():
         # 4-point stub, one below what the fitter needs. Measured: 250px takes
         # arcs found from 2 of 10 to 4 of 10, and wider than that changes
         # nothing, because the rest fail for a different reason entirely.
-        ball_tracks = build_ball_tracks(ball_pts, match_px=250)
+        # Patience and reach both widened for the full frame, and short tracks
+        # kept. The defaults were written for the rim crop where the ball is seen
+        # almost every frame; out in the pool it is seen in 60% of samples at
+        # best, three frames apart.
+        ball_tracks = build_ball_tracks(ball_pts, match_px=250, max_miss=40, min_track=2)
         if not ball_tracks:
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                          "stage": "ball never tracked"})
             continue
 
-        # The track that actually arrives at this hoop: the shot, rather than
-        # another ball drifting somewhere else in the pool.
-        def reaches_rim(tr):
-            best = 1e9
-            for q in tr:
-                if float(j["t"]) - 0.6 <= q["t"] <= t1_ + 0.6:
-                    best = min(best, ((q["x"] - rimx) ** 2 + (q["y"] - rimy) ** 2) ** 0.5)
-            return best
-        shot_track = min(ball_tracks, key=reaches_rim)
-        if reaches_rim(shot_track) > 500:
-            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
-                         "stage": "no ball arrives at this hoop"})
-            continue
+        # Choose the flight HEADED for this hoop, not one that reaches it.
+        #
+        # The detector holds the ball across the pool and loses it at the rim --
+        # phase 3 measured that and it has been quietly breaking track selection
+        # ever since. Demanding the track come within 500px of the hoop threw
+        # away exactly the well-tracked flights: one clean 23-point arc was
+        # discarded for stopping 629px short, which is simply where detection
+        # gave out. A parabola extrapolates forward as easily as backward, so ask
+        # where the flight WOULD be when the ball starts falling at the hoop.
+        # Measured on ten labeled shots: 4 usable arcs became 6.
+        shot_track, shot_arc, best_miss = None, None, 1e9
+        for tr in ball_tracks:
+            a = best_arc(tr)
+            if not a:
+                continue
+            px, py = arc_at(a["fit"], float(j["t"]))
+            miss = ((px - rimx) ** 2 + (py - rimy) ** 2) ** 0.5
+            if miss < best_miss:
+                shot_track, shot_arc, best_miss = tr, a, miss
+        if shot_track is None or best_miss > 700:
+            # No flight aims at this hoop. Either the ball was carried there, or
+            # it was never seen well enough to fit -- separated below.
+            near = [tr for tr in ball_tracks
+                    if min(((q["x"] - rimx) ** 2 + (q["y"] - rimy) ** 2) ** 0.5 for q in tr) < 500]
+            if not near:
+                rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                             "stage": "no flight aimed at this hoop"})
+                continue
+            shot_track, shot_arc = max(near, key=len), None
 
-        rel = arc_release(shot_track)
+        # The arc is already fitted by the selection above; re-deriving it here
+        # would be a second, possibly different answer to the same question.
+        rel = None
+        if shot_arc:
+            first = shot_arc["pts"][0]
+            fx, fy = arc_at(shot_arc["fit"], first["t"])
+            rel = {"t": first["t"], "x": fx, "y": fy, "fit": shot_arc["fit"],
+                   "rms": shot_arc["rms"],
+                   "span": shot_arc["pts"][-1]["t"] - first["t"],
+                   "sag": 0.0, "n": len(shot_arc["pts"])}
         is_dunk = rel is None
         if is_dunk:
             # No parabola means the ball was carried to the rim, which is a dunk.
@@ -277,25 +306,67 @@ def main():
             rel_t, rel_x, rel_y = anchor["t"], anchor["x"], anchor["y"]
             stage["dunk (no arc)"] += 1
         else:
-            rel_t, rel_x, rel_y = rel["t"], rel["x"], rel["y"]
             stage["arc found"] += 1
+            # Where the TRACK begins is not where the THROW begins. If the ball
+            # is not detected until it is already in the air, the arc's first
+            # point floats in open water with nobody near it -- verified on a
+            # real shot. The parabola describes the flight before that too, so
+            # run it backwards until it reaches someone's hands.
+            def people_at(tq):
+                fq = int(round(tq * fps / 3) * 3)
+                out = []
+                for ti2, tr2 in enumerate(tracks):
+                    q2 = next((z for z in tr2 if z["f"] == fq), None)
+                    if q2:
+                        out.append((ti2, q2["box"]))
+                return out
+            back = origin_at_person(rel["fit"], rel["t"], people_at)
+            if back:
+                rel_t, rel_x, rel_y = back["t"], back["x"], back["y"]
+                stage["walked back to a person"] += 1
+            else:
+                rel_t, rel_x, rel_y = rel["t"], rel["x"], rel["y"]
 
         # The shooter is whoever is standing where the flight began.
+        # Who was HOLDING it, judged over the frames just before the release
+        # rather than at the single instant of it.
+        #
+        # review, after seeing the curves land correctly but the ring land on the
+        # wrong person: "when a curve is present, it does a good job at starting
+        # on when the ball is released from the hands. can we just look a few
+        # frames back from there to determine who was holding the ball?" Right,
+        # and for a reason worth stating: at the exact moment of release the ball
+        # is already leaving, so a defender's raised hand can be nearer to it than
+        # the shooter's. A few frames earlier it is still in the shooter's hands
+        # and nobody else's.
         cands = []
         for ti, tr in enumerate(tracks):
-            # Person tracks are stamped with frames, not seconds -- only the
-            # ball points were translated for the tracker.
-            near = [q for q in tr if abs(q["f"] / fps - rel_t) <= 0.25]
-            if not near:
+            # Person tracks are stamped with frames, not seconds -- only the ball
+            # points were translated for the tracker.
+            window = [q for q in tr if -0.40 <= (q["f"] / fps - rel_t) <= 0.10]
+            if not window:
                 continue
-            q = min(near, key=lambda z: abs(z["f"] / fps - rel_t))
-            x1b, y1b, x2b, y2b = q["box"]
-            # Distance to the BOX, not to its center: a shooter's arms are up and
-            # the ball leaves above their head, which is far from their middle
-            # but no distance at all from their outline.
-            dx = max(x1b - rel_x, 0, rel_x - x2b)
-            dy = max(y1b - rel_y, 0, rel_y - y2b)
-            cands.append(((dx * dx + dy * dy) ** 0.5, ti, q))
+            # Score by the CLOSEST that person ever came to the ball's own path
+            # across that window, using the fitted curve where there is one so
+            # the ball's position is known even in frames it was not detected.
+            best_q, best_dist = None, 1e9
+            for q in window:
+                tq = q["f"] / fps
+                if rel is not None:
+                    bx, by = arc_at(rel["fit"], tq)
+                else:
+                    bx, by = rel_x, rel_y
+                x1b, y1b, x2b, y2b = q["box"]
+                # Distance to the BOX, not its center: a shooter's arms are up
+                # and the ball leaves above their head, far from their middle and
+                # no distance at all from their outline.
+                dx = max(x1b - bx, 0, bx - x2b)
+                dy = max(y1b - by, 0, by - y2b)
+                d = (dx * dx + dy * dy) ** 0.5
+                if d < best_dist:
+                    best_q, best_dist = q, d
+            if best_q is not None:
+                cands.append((best_dist, ti, best_q))
         if not cands:
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                          "stage": "nobody at the origin of the flight"})
@@ -311,6 +382,8 @@ def main():
         if not is_dunk:
             span_end = max(q["t"] for q in shot_track if q["t"] >= rel_t) if any(
                 q["t"] >= rel_t for q in shot_track) else rel_t
+            # Drawn from the extrapolated release, so the curve shown starts at
+            # the hands rather than wherever the detector woke up.
             for tt, ax, ay in polyline(rel["fit"], rel_t, span_end, 20):
                 arc_pct.append([round(tt - clip_t0, 2), round(ax / 3840 * 100, 2), round(ay / 2160 * 100, 2)])
 

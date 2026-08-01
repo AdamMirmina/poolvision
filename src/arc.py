@@ -182,3 +182,49 @@ def polyline(fit: dict, t_from: float, t_to: float, steps: int = 24):
         x, y = at(fit, t)
         out.append((round(t, 3), round(x, 1), round(y, 1)))
     return out
+
+
+def origin_at_person(fit, t_first, people_at, back_s: float = 1.2, step: float = 1 / 60,
+                     reach_px: float = 90.0):
+    """Run the parabola backwards until it meets someone's hands.
+
+    The missing step, and the reason a correct arc still produced a wrong
+    answer. `t_first` is where the TRACK begins, not where the THROW begins: if
+    the detector does not pick the ball up until it is already in the air, the
+    arc's first point floats in open water with nobody near it. That is exactly
+    what one verified case looked like.
+
+    The parabola describes the whole flight, including the part before the ball
+    was first seen, so it can be run backwards. The throw began at the last
+    moment before the ball was in anyone's hands, so walk back until the curve
+    comes within arm's reach of a person and stop there.
+
+    `people_at(t)` returns [(id, box)] at that moment. Boxes rather than centers:
+    a shooter's arms are up and the ball leaves above their head, far from their
+    middle and no distance at all from their outline.
+    """
+    best = None
+    t = t_first
+    n = int(back_s / step)
+    for _ in range(n):
+        t -= step
+        x, y = at(fit, t)
+        for pid, box in people_at(t):
+            x1, y1, x2, y2 = box
+            dx = max(x1 - x, 0, x - x2)
+            dy = max(y1 - y, 0, y - y2)
+            d = (dx * dx + dy * dy) ** 0.5
+            if d <= reach_px:
+                # STOP at the first person met walking backwards.
+                #
+                # Taking the earliest contact instead was wrong and verifiably
+                # so: on a blocked shot it walked the full window past the
+                # blocker and landed on an unrelated swimmer. The ball came from
+                # whoever it touched most recently before the flight, and if that
+                # was a blocker rather than the shooter, that is the honest
+                # answer for the flight actually observed -- extrapolating a
+                # parabola back THROUGH a deflection describes a trajectory the
+                # ball never took.
+                return {"t": t, "x": x, "y": y, "person": pid, "dist": d,
+                        "walked": round(t_first - t, 2)}
+    return None
