@@ -21,7 +21,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parent.parent
 
-WATER_CV, WATER_MARGIN, MIN_SAT = 96, 16, 105
+# Water sits at 192 degrees (96 on OpenCV's 0-179 scale). The margin used to be
+# 16, i.e. 32 degrees, which excluded everything from 160 to 224 -- and a blue
+# cap lives at 210-230. It was being rejected as pool.
+#
+# 10 (20 degrees) still clears the water while leaving blue readable. The shape
+# test is what actually protects against the water anyway: the pool is not a
+# compact round blob sitting high in a head box.
+WATER_CV, WATER_MARGIN, MIN_SAT = 96, 10, 105
 CAP_MIN_PX, CAP_MAX_PX = 60, 9000
 
 
@@ -85,9 +92,31 @@ def cap_in_box(frame, box, cv2, np):
     # high in the head box, a cap is. Reported separately as -2 so a black
     # reading can be audited rather than blending into the rest.
     masks = [
-        (((S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN) & (deg >= 32) & (deg <= 300)).astype(np.uint8), "color"),
-        (((S < 50) & (V > 180)).astype(np.uint8), "white"),
+        # 32-345, not 32-300. The old ceiling was set to keep the red-and-white
+        # ball out, and it excluded pink caps at 330 along with it. Inside a
+        # head box the ball is rare and a cap is not, and the shape test already
+        # rejects a ball that does wander through: it is much smaller than a cap
+        # at this distance and rarely sits high in the box.
+        (((S > MIN_SAT) & (V > 70) & (dh > WATER_MARGIN) & (deg >= 32) & (deg <= 345)).astype(np.uint8), "color"),
+        # S<75, not S<50. A white silicone cap picks up color from the pool it
+        # is sitting in, so its pixels are not as colorless as the name
+        # suggests: on a real miss, only 100 pixels passed S<50 and they were
+        # too scattered to form a blob. Loosening to 75 finds 222 on that same
+        # cap, and the water it might be confused with sits at 139, so there is
+        # plenty of room between them.
+        (((S < 75) & (V > 170)).astype(np.uint8), "white"),
         (((V < 70) & (S < 120)).astype(np.uint8), "black"),
+        # Blue, which hue cannot separate from the pool.
+        #
+        # Measured on one frame: the blue cap sits at hue 206 with saturation
+        # 196 and brightness 179, the open water at hue 192 with saturation 143
+        # and brightness 223. Fourteen degrees apart in hue, and a single cap
+        # drifts forty-six degrees across a video, so no hue rule can do this.
+        #
+        # But the cap is a deep blue and the water is a pale bright one, which
+        # saturation and brightness separate cleanly. Worth knowing beyond the
+        # code: a PALE blue cap would be genuinely invisible in this pool.
+        ((((deg >= 185) & (deg <= 265)) & (S > 170) & (V < 205)).astype(np.uint8), "color"),
     ]
     best = None
     for m, kind in masks:
