@@ -36,6 +36,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import hoops
+from arc import release as arc_release, polyline, at as arc_at
+from tracks import build_tracks as build_ball_tracks
 
 ROOT = Path(__file__).resolve().parent.parent
 SPORTS_BALL, PERSON = 32, 0
@@ -214,37 +216,89 @@ def main():
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                          "stage": "ball never far from the rim"})
             continue
-        # Contacts BEFORE the ball starts falling toward the hoop. Nothing that
-        # happens after it can be the release.
+        # THE BALL'S OWN FLIGHT decides where it came from.
         #
-        # This rule used to be safe by accident: the search window ended at the
-        # descent, so "the latest contact" could not be a later one. Widening
-        # the window to track people across the whole clip removed that
-        # accident, and 73 of 91 releases on IMG_2482 came back AFTER the shot
-        # had begun falling -- crediting whoever caught the rebound. The tell
-        # was a flight time of minus 2.27 seconds, which is not a thing.
-        f_release_max = float(j["t"]) * fps
-        far = [b for b in far if b["f"] <= f_release_max]
-        if not far:
+        # Two rules failed before this. "Whoever was nearest the ball at the last
+        # moment before it fell" picks the defender, whose hands are up beside
+        # the ball at exactly that instant -- and it chose green. "Whoever possessed it longest" was
+        # better in principle and still barely beat chance, because both are
+        # asking about one moment or one neighbourhood rather than about the
+        # shot itself.
+        #
+        # A thrown ball is a parabola and a parabola has an origin. Fit the
+        # flight, extrapolate back to where it began, and the shooter is whoever
+        # is standing there. A defender beside the ball's path is not at the
+        # start of it, and no threshold has to be tuned to know that.
+        ball_tracks = build_ball_tracks(sorted(balls, key=lambda b: b["frame"]))
+        if not ball_tracks:
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
-                         "stage": "ball never in anyone's hands before the shot"})
+                         "stage": "ball never tracked"})
             continue
-        best_tr, best_f, best_d = None, -1, None
-        for b in far:
-            for tr in tracks:
-                near = [q for q in tr if abs(q["f"] - b["f"]) <= 3]
-                if not near:
-                    continue
-                q = min(near, key=lambda z: ((z["x"] - b["x"]) ** 2 + (z["y"] - b["y"]) ** 2) ** 0.5)
-                d = ((q["x"] - b["x"]) ** 2 + (q["y"] - b["y"]) ** 2) ** 0.5
-                if d < 260 and b["f"] > best_f:
-                    best_tr, best_f, best_d = tr, b["f"], d
-        if best_tr is None:
+
+        # The track that actually arrives at this hoop: the shot, rather than
+        # another ball drifting somewhere else in the pool.
+        def reaches_rim(tr):
+            best = 1e9
+            for q in tr:
+                if float(j["t"]) - 0.6 <= q["t"] <= t1_ + 0.6:
+                    best = min(best, ((q["x"] - rimx) ** 2 + (q["y"] - rimy) ** 2) ** 0.5)
+            return best
+        shot_track = min(ball_tracks, key=reaches_rim)
+        if reaches_rim(shot_track) > 500:
             rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
-                         "stage": "nobody was holding the ball"})
+                         "stage": "no ball arrives at this hoop"})
             continue
-        stage["release point found"] += 1
-        stage["person found near release"] += 1
+
+        rel = arc_release(shot_track)
+        is_dunk = rel is None
+        if is_dunk:
+            # No parabola means the ball was carried to the rim, which is a dunk.
+            # Failing to fit an arc IS the dunk detector, so this is a real
+            # answer rather than a fallback: whoever had the ball at the rim.
+            near_rim = [q for q in shot_track
+                        if ((q["x"] - rimx) ** 2 + (q["y"] - rimy) ** 2) ** 0.5 < 600]
+            if not near_rim:
+                rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                             "stage": "no arc and no ball at the rim"})
+                continue
+            anchor = min(near_rim, key=lambda q: abs(q["t"] - float(j["t"])))
+            rel_t, rel_x, rel_y = anchor["t"], anchor["x"], anchor["y"]
+            stage["dunk (no arc)"] += 1
+        else:
+            rel_t, rel_x, rel_y = rel["t"], rel["x"], rel["y"]
+            stage["arc found"] += 1
+
+        # The shooter is whoever is standing where the flight began.
+        cands = []
+        for ti, tr in enumerate(tracks):
+            near = [q for q in tr if abs(q["t"] - rel_t) <= 0.25]
+            if not near:
+                continue
+            q = min(near, key=lambda z: abs(z["t"] - rel_t))
+            x1b, y1b, x2b, y2b = q["box"]
+            # Distance to the BOX, not to its center: a shooter's arms are up and
+            # the ball leaves above their head, which is far from their middle
+            # but no distance at all from their outline.
+            dx = max(x1b - rel_x, 0, rel_x - x2b)
+            dy = max(y1b - rel_y, 0, rel_y - y2b)
+            cands.append(((dx * dx + dy * dy) ** 0.5, ti, q))
+        if not cands:
+            rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
+                         "stage": "nobody at the origin of the flight"})
+            continue
+        best_d, ti, _ = min(cands, key=lambda c: c[0])
+        best_tr = tracks[ti]
+        best_f = int(rel_t * fps)
+        stage["shooter found"] += 1
+
+        # The arc itself, in frame shares, so review can see the evidence
+        # rather than take the answer on trust.
+        arc_pct = []
+        if not is_dunk:
+            span_end = max(q["t"] for q in shot_track if q["t"] >= rel_t) if any(
+                q["t"] >= rel_t for q in shot_track) else rel_t
+            for tt, ax, ay in polyline(rel["fit"], rel_t, span_end, 20):
+                arc_pct.append([round(tt - clip_t0, 2), round(ax / 3840 * 100, 2), round(ay / 2160 * 100, 2)])
 
         # The path, as shares of the frame, timed from the clip's own start.
         path = []
@@ -278,8 +332,13 @@ def main():
 
         rows.append({"clock": j["clock"], "n": j["n"], "video": args.video,
                      "stage": "attributed",
-                     "releaseT": round(best_f / fps, 2),
+                     "releaseT": round(rel_t, 2),
                      "dist": round(best_d),
+                     "dunk": is_dunk,
+                     "arcRms": (None if is_dunk else round(rel["rms"], 1)),
+                     "arcSpan": (None if is_dunk else round(rel["span"], 2)),
+                     "arcSag": (None if is_dunk else rel["sag"]),
+                     "arcPct": arc_pct,
                      "shooterPath": path,
                      "hue": (round(hue, 1) if hue is not None else None)})
     cap.release()
