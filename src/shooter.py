@@ -48,6 +48,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import arc
+import facing
 import hoops
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -362,7 +363,7 @@ def _people_at(per_person, t, hands_up_only=False):
     return out
 
 
-def attribute(ball_track, per_person):
+def attribute(ball_track, per_person, rig=None, hoop=None):
     """Who shot it, by the arc first and the release shape second.
 
     The release rule answers 5 of 17 shots on IMG_2482 and the reason is not a
@@ -402,8 +403,24 @@ def attribute(ball_track, per_person):
                 dx = max(x1 - flight["x"], 0, flight["x"] - x2)
                 dy = max(y1 - flight["y"], 0, flight["y"] - y2)
                 d = (dx * dx + dy * dy) ** 0.5
-                if d <= REACH_PX and (hit is None or d < hit[1]):
-                    hit = (pid, d, flight["t"], flight["x"], flight["y"])
+                if d > REACH_PX:
+                    continue
+                # Facing the hoop breaks ties, where it can be trusted. the heuristic: two people with a hand up, both beside the ball, and
+                # the one turned toward the basket the shot went to is the
+                # shooter. It is independent of everything else here, which are
+                # all about WHERE someone is rather than which way they face.
+                face = None
+                if rig is not None and hoop and facing.usable_for(rig, hoop):
+                    snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - flight["t"]))
+                    snap = per_person[pid]["at"][snaps[0]] if snaps else {}
+                    kp = snap.get("kp")
+                    if kp:
+                        r = rig.rims[hoop]
+                        face = facing.toward(kp, ((r[0] + r[2]) / 2, (r[1] + r[3]) / 2),
+                                             facing.body_center(kp, snap.get("box")))
+                score = d - (0 if face is None else face * 60.0)
+                if hit is None or score < hit[5]:
+                    hit = (pid, d, flight["t"], flight["x"], flight["y"], score)
             if hit is None:
                 walked = arc.origin_at_person(
                     flight["fit"], flight["t"],
@@ -411,11 +428,11 @@ def attribute(ball_track, per_person):
                     back_s=1.2, reach_px=REACH_PX)
                 if walked:
                     hit = (walked["person"], walked["dist"], walked["t"],
-                           walked["x"], walked["y"])
+                           walked["x"], walked["y"], walked["dist"])
             if hit:
                 break
         if hit:
-            pid, d, t, x, y = hit
+            pid, d, t, x, y, _score = hit
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
             snap = per_person[pid]["at"][snaps[0]] if snaps else {}
             return ({"person": pid, "t": round(t, 2), "dist": round(d, 1),
@@ -471,7 +488,8 @@ def main():
     for j in shots:
         ball_track, per_person = scan_cached(args.video, j["n"], float(j["t"]),
                                              cap, fps, det, pos, pool=pool)
-        pick, how, extra = attribute(ball_track, per_person)
+        pick, how, extra = attribute(ball_track, per_person,
+                                     rig=hoops.rig_for(args.video), hoop=j.get("hoop"))
         flight, cands = extra["flight"], extra["cands"]
 
         base = {"n": j["n"], "clock": j["clock"], "video": args.video,
