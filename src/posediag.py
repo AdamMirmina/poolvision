@@ -25,9 +25,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import numpy as np
+
 import arc
 import hoops
 import shooter
+import threept
 from frames import frame_at
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +45,12 @@ RED = (60, 60, 235)
 GRAY = (150, 150, 150)
 WHITE = (255, 255, 255)
 AMBER = (40, 190, 250)
+# Wrists are colored by what they SAY, not by whose box they sit in. Right: a marker
+# that repeats the box's color carries no information the box did not already
+# give, and hands up or down is the single reading the whole rule turns on.
+WRIST_UP = (60, 235, 245)     # yellow
+WRIST_DOWN = (235, 150, 60)   # blue
+LINE3 = (200, 120, 255)
 
 
 def everyone_at(per_person, t):
@@ -65,19 +74,25 @@ def everyone_at(per_person, t):
     return out
 
 
-def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180):
-    """Tighten onto the people, the ball and the flight.
+def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
+    """The whole pool, plus anything happening outside it.
 
-    Two thirds of a 4K frame here is empty water, deck and lawn. Shown at the
-    size review wants (the still and the clip on screen together) that leaves the
-    part being judged as a thumbnail. Cropping to what the decision involves is
-    what makes the marks readable small, and nothing that mattered is dropped
-    because the crop is taken FROM the things that mattered.
+    An earlier version cropped tight to the people and the ball, which made the
+    marks bigger but hid the thing being judged: review wants to see everyone in
+    the water, because a shooter the pipeline never boxed is exactly the failure
+    worth catching and a tight crop can leave them out of frame entirely. "on
+    these images i want whole pool visible, at least, showing all people in the
+    pool."
+
+    So the crop starts from the pool and only ever grows.
 
     Returns the cropped frame and the (dx, dy) to subtract from every drawing
     coordinate.
     """
     xs, ys = [], []
+    if pool:
+        xs += [pool[0], pool[2]]
+        ys += [pool[1], pool[3]]
     for p in people:
         x1, y1, x2, y2 = p["box"]
         xs += [x1, x2]
@@ -111,7 +126,8 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180):
     return fr[y1:y2, x1:x2].copy(), (x1, y1)
 
 
-def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0)):
+def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
+         quad=None, hoop_side="left"):
     import cv2
 
     dx, dy = off
@@ -147,6 +163,32 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0)):
         cv2.circle(fr, (ox, oy), int(20 * S), AMBER, th, cv2.LINE_AA)
         cv2.putText(fr, "throw starts", (ox + int(26 * S), oy + int(7 * S)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, AMBER, th, cv2.LINE_AA)
+
+    # ONE boundary, for the hoop this shot went to, shaded rather than drawn as a
+    # bare line. Two lines with two labels was
+    # unreadable, and half of it was about a hoop the ball never went near.
+    if three and quad:
+        (lx1, ly1), (lx2, ly2) = three
+        near = np.array(quad["near"], float)
+        far = np.array(quad["far"], float)
+        vp = np.array(quad["vp"], float)
+        p_near = np.array([lx1, ly1], float)
+        p_far = np.array([lx2, ly2], float)
+        # The three-point side is the side AWAY from the hoop: toward the far end
+        # of the pool for the near hoop, and toward the vanishing point for the
+        # other, which is what makes it a region rather than a half-plane over
+        # the whole photograph.
+        poly = ([p_near, p_far, far, near] if hoop_side == "right"
+                else [p_near, p_far, vp])
+        poly = np.array([[int(p[0]) - dx, int(p[1]) - dy] for p in poly], np.int32)
+        shade = fr.copy()
+        cv2.fillPoly(shade, [poly], LINE3)
+        cv2.addWeighted(shade, 0.22, fr, 0.78, 0, fr)
+        cv2.line(fr, (int(lx1) - dx, int(ly1) - dy), (int(lx2) - dx, int(ly2) - dy),
+                 LINE3, th + 1, cv2.LINE_AA)
+        mid = ((int(lx1) + int(lx2)) // 2 - dx, (int(ly1) + int(ly2)) // 2 - dy)
+        cv2.putText(fr, "3 from here back", (mid[0] - int(210 * S), mid[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.72 * S, LINE3, th, cv2.LINE_AA)
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -191,9 +233,11 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0)):
                 continue
             wx, wy = int(wpt[0]) - dx, int(wpt[1]) - dy
             above = hy is not None and wy < hy
-            cv2.circle(fr, (wx, wy), int(10 * S), col, -1, cv2.LINE_AA)
+            wcol = WRIST_UP if above else WRIST_DOWN
+            cv2.circle(fr, (wx, wy), int(10 * S), wcol, -1, cv2.LINE_AA)
+            cv2.circle(fr, (wx, wy), int(10 * S), (20, 20, 20), max(1, th - 2), cv2.LINE_AA)
             cv2.putText(fr, "up" if above else "down", (wx + int(13 * S), wy + int(5 * S)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, col, max(1, th - 1), cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, wcol, max(1, th - 1), cv2.LINE_AA)
 
         bits = ["SHOOTER"] if chosen else []
         bits.append(f"hands {lift:+.2f}" if lift is not None else "hands ?")
@@ -237,7 +281,8 @@ def main():
     det = YOLO("yolo11s.pt")
     pos = YOLO("yolo11s-pose.pt")
 
-    pool = hoops.rig_for(args.video).pool
+    rig = hoops.rig_for(args.video)
+    pool = rig.pool
     # The make/miss model's own call on each shot, so the page can show what the
     # pipeline thinks happened next to who it thinks shot it.
     pm = ROOT / f"out/pmake_{args.video.replace('.MOV','')}.json"
@@ -262,13 +307,23 @@ def main():
 
         note = (notes.get(n, {}).get("note") or "").strip()
         people = everyone_at(per_person, pick["t"])
+        # Two or three, from the shooter's hips against this hoop's boundary.
+        three, marg = threept.call(rig, j.get("hoop", "left"), pick.get("kp"))
+        points = None if three is None else (3 if three else 2)
         if pick.get("box") and not any(p["person"] == pick["person"] for p in people):
             people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
 
-        sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"])
+        sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
+        hoop = j.get("hoop", "left")
         out = args.out / f"pose-diag-{n}.jpg"
-        cv2.imwrite(str(out), draw(sub, people, pick, flight, ball_track, pick["t"], off),
+        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
+        line = (rig.three_lines or {}).get(hoop)
+        if line and rig.quad:
+            cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
+                        draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
+                             three=line, quad=rig.quad, hoop_side=hoop),
+                        [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
             "people": len(people), "handsUp": sum(1 for p in people if (p.get("lift") or 0) > 0),
@@ -278,6 +333,9 @@ def main():
             "arcTravel": round(flight["travel"]) if flight else None,
             "arcRms": round(flight["rms"], 1) if flight else None,
             "pMake": pmake.get(str(n)),
+            "points": points, "threeMargin": None if marg is None else round(marg, 2),
+            "hoop": j.get("hoop", "left"),
+            "has3pt": bool((rig.three_lines or {}).get(j.get("hoop", "left")) and rig.quad),
         })
         print(f"  #{n}: {how}, {len(people)} people boxed, "
               f"{'arc' if flight else 'no arc'}, pMake {pmake.get(str(n))} -> {out.name}")

@@ -57,6 +57,9 @@ class Rig:
     # 2026-07-29 footage and are not in the 2026-08-01 shootout at all, so no
     # session has them yet.
     three_lines: dict[str, tuple[tuple[int, int], tuple[int, int]]] | None = None
+    # The water's corners, used to shade the three-point AREA instead of drawing
+    # a bare line across the picture.
+    quad: dict[str, tuple[int, int]] | None = None
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""
@@ -122,10 +125,37 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # the waterline. Everything left of this is grass and deck.
         pool=(832, 0, 3840, 2160),
     )
+# The three-point boundaries for this session, from the two blue deck posts.
+#
+# A post gives a POINT; a boundary needs a direction, and under perspective the
+# cross-pool direction is neither vertical nor constant. The pool's two long
+# sides converge at a vanishing point, so every line that crosses the pool in the
+# real world passes through that same point in the image. Each post is projected
+# onto the near edge and the matching fraction taken along the far edge, which
+# makes these constructed rather than drawn by hand.
+#
+# Which post serves which hoop is the own rule, not an inference: "if someone
+# is shooting on right hoop and they're behind the left post it's a 3."
+# The water's own corners, so the three-point AREA can be filled rather than
+# just its edge drawn. `near` and `far` are the left ends of the two long sides
+# and `vp` is where those sides converge, which is the vanishing point of the
+# pool's length.
+_S0729_QUAD = {"near": (954, 1909), "far": (1539, 224), "vp": (3839, 1286)}
+
+_S0729_THREE = {
+    "right": ((2627, 1547), (2873, 840)),
+    "left": ((2892, 1490), (3084, 937)),
+}
+
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
     RIGS[_name] = Rig(
         rims=_S0729_RIMS,
         crops={k: _crop_around(v, 430, 400) for k, v in _S0729_RIMS.items()},
+        # The whole water plus both hoops. review wants the review pictures to show
+        # the whole pool and everyone in it, not a crop around the action.
+        pool=(700, 100, 3840, 2010),
+        three_lines=_S0729_THREE,
+        quad=_S0729_QUAD,
     )
 
 
