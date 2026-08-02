@@ -50,6 +50,13 @@ class Rig:
     crops: dict[str, tuple[int, int, int, int]]
     dets: dict[str, tuple[int, int, int, int]] | None = None
     pool: tuple[int, int, int, int] = (1150, 250, 3500, 1750)
+    # Per hoop, the two image points the three-point boundary runs through, taken
+    # from the blue deck markers. Absent means this session has no measured
+    # markers and threept.py declines to call a three, which is the honest answer.
+    # Checked 2026-08-02: the markers sit stowed together on the deck in the
+    # 2026-07-29 footage and are not in the 2026-08-01 shootout at all, so no
+    # session has them yet.
+    three_lines: dict[str, tuple[tuple[int, int], tuple[int, int]]] | None = None
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""

@@ -1,0 +1,95 @@
+"""Score unlabelled shots for make/miss, using the model trained on labeled ones.
+
+makemiss.py trains and evaluates in one process and keeps nothing, which is fine
+for measuring the model and useless for using it. This fits on everything review
+has judged and predicts on a video he has not, so the diagnostic can show what
+the pipeline thinks happened alongside who it thinks shot it.
+
+The number is a probability, and it is shown as one. At 82% accuracy and 0.875
+AUC it is right far more often than not and still wrong on roughly one in five,
+so rounding it to a verdict would overstate what it knows.
+
+    python src/predict_make.py --video IMG_2482.MOV
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import hoops
+import makemiss
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def build(rows):
+    """(feature dicts, the rows they came from) for anything trackable."""
+    feats, kept = [], []
+    for j in rows:
+        try:
+            tr = makemiss.anchor_descent(j["video"], j["hoop"], j["t"])
+        except Exception:
+            tr = None
+        if not tr:
+            continue
+        rim = hoops.rig_for(j["video"]).rims[j["hoop"]]
+        f = makemiss.features(tr, rim)
+        if not f:
+            continue
+        feats.append(f)
+        kept.append(j)
+    return feats, kept
+
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--video", default="IMG_2482.MOV")
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingClassifier
+
+    judged = [j for j in json.loads((ROOT / "labels/judged.json").read_text(encoding="utf-8"))
+              if j.get("label") == "make" or j.get("label") in makemiss.MISS_LABELS]
+    judged = [j for j in judged if j["video"] in makemiss.RIMWATCH]
+    tf, tk = build(judged)
+    if len(tf) < 40:
+        print(f"only {len(tf)} usable labeled shots; not enough to fit")
+        return 1
+    names = sorted(tf[0])
+    X = np.array([[f[n] for n in names] for f in tf], dtype=float)
+    y = np.array([1 if j["label"] == "make" else 0 for j in tk])
+    print(f"fitting on {len(y)} judged shots ({int(y.sum())} makes)")
+
+    model = GradientBoostingClassifier(random_state=0).fit(X, y)
+
+    shots = [j for j in json.loads((ROOT / "labels/allshots.json").read_text(encoding="utf-8"))
+             if j["video"] == args.video and j.get("label") != "notshot"]
+    sf, sk = build(shots)
+    if not sf:
+        print("no trackable shots in that video")
+        return 1
+    # A feature the training set never saw cannot be used, and a feature it saw
+    # that is missing here has to be filled rather than silently reordered.
+    XS = np.array([[f.get(n, 0.0) for n in names] for f in sf], dtype=float)
+    p = model.predict_proba(XS)[:, 1]
+
+    out = {str(j["n"]): round(float(pi), 3) for j, pi in zip(sk, p)}
+    dest = ROOT / f"out/pmake_{args.video.replace('.MOV','')}.json"
+    dest.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    print(f"scored {len(out)} of {len(shots)} shots -> {dest.name}")
+    print(f"  leaning make: {sum(1 for v in out.values() if v >= 0.5)}, "
+          f"leaning miss: {sum(1 for v in out.values() if v < 0.5)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

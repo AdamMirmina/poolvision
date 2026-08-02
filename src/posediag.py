@@ -44,9 +44,77 @@ WHITE = (255, 255, 255)
 AMBER = (40, 190, 250)
 
 
-def draw(fr, cands, pick, flight, ball_track, t_rel, meta):
+def everyone_at(per_person, t):
+    """Every person seen, with their reading at the moment nearest `t`.
+
+    candidates() returns only those who cleared the release test, and drawing
+    only those hides the failure worth finding: the whole point was that the
+    real shooter was sometimes not boxed at all. A person the rule discarded
+    still has to appear, so he can point at them.
+    """
+    out = []
+    for key, v in per_person.items():
+        snaps = [(abs(float(tt) - t), float(tt), v["at"][tt]) for tt in v["at"]]
+        if not snaps:
+            continue
+        dt, tt, s = min(snaps, key=lambda z: z[0])
+        if dt > 0.30 or not s.get("box"):
+            continue
+        out.append({"person": key, "box": s["box"], "kp": s.get("kp"),
+                    "gap": s.get("gap"), "lift": s.get("lift")})
+    return out
+
+
+def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180):
+    """Tighten onto the people, the ball and the flight.
+
+    Two thirds of a 4K frame here is empty water, deck and lawn. Shown at the
+    size review wants (the still and the clip on screen together) that leaves the
+    part being judged as a thumbnail. Cropping to what the decision involves is
+    what makes the marks readable small, and nothing that mattered is dropped
+    because the crop is taken FROM the things that mattered.
+
+    Returns the cropped frame and the (dx, dy) to subtract from every drawing
+    coordinate.
+    """
+    xs, ys = [], []
+    for p in people:
+        x1, y1, x2, y2 = p["box"]
+        xs += [x1, x2]
+        ys += [y1, y2]
+    for b in ball_track:
+        if flight and not (flight["t"] - 0.05 <= b["t"] <= flight["t"] + flight["span"] + 0.05):
+            continue
+        xs.append(b["x"])
+        ys.append(b["y"])
+    if flight:
+        xs.append(flight["x"])
+        ys.append(flight["y"])
+    if not xs:
+        return fr, (0, 0)
+
+    h, w = fr.shape[:2]
+    x1, x2 = max(0, int(min(xs)) - pad), min(w, int(max(xs)) + pad)
+    y1, y2 = max(0, int(min(ys)) - pad), min(h, int(max(ys)) + pad)
+
+    # Hold 16:9 so the still and the clip below it read as the same scene rather
+    # than two differently-shaped pictures of it.
+    cw, ch = x2 - x1, y2 - y1
+    if cw / max(1, ch) < 16 / 9:
+        want = int(ch * 16 / 9)
+        grow = (want - cw) // 2
+        x1, x2 = max(0, x1 - grow), min(w, x2 + grow)
+    else:
+        want = int(cw * 9 / 16)
+        grow = (want - ch) // 2
+        y1, y2 = max(0, y1 - grow), min(h, y2 + grow)
+    return fr[y1:y2, x1:x2].copy(), (x1, y1)
+
+
+def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0)):
     import cv2
 
+    dx, dy = off
     h, w = fr.shape[:2]
     # Everything scales off the frame width. The first version used fixed point
     # sizes tuned on a preview and they came out microscopic on a 3840-wide
@@ -65,7 +133,7 @@ def draw(fr, cands, pick, flight, ball_track, t_rel, meta):
         t_to = flight["t"] + flight["span"]
         prev = None
         for _t, x, y in arc.polyline(flight["fit"], t_from, t_to, 48):
-            p = (int(x), int(y))
+            p = (int(x) - dx, int(y) - dy)
             if prev:
                 cv2.line(fr, prev, p, AMBER, th, cv2.LINE_AA)
             prev = p
@@ -73,55 +141,74 @@ def draw(fr, cands, pick, flight, ball_track, t_rel, meta):
         # points cannot pass for one resting on twenty.
         for b in ball_track:
             if t_from - 0.02 <= b["t"] <= t_to + 0.02:
-                cv2.circle(fr, (int(b["x"]), int(b["y"])), max(4, int(5 * S)), AMBER, -1, cv2.LINE_AA)
-        ox, oy = int(flight["x"]), int(flight["y"])
+                cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
+                           AMBER, -1, cv2.LINE_AA)
+        ox, oy = int(flight["x"]) - dx, int(flight["y"]) - dy
         cv2.circle(fr, (ox, oy), int(20 * S), AMBER, th, cv2.LINE_AA)
-        cv2.putText(fr, "the throw starts here", (ox + int(28 * S), oy + int(8 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.95 * S, AMBER, th, cv2.LINE_AA)
+        cv2.putText(fr, "throw starts", (ox + int(26 * S), oy + int(7 * S)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, AMBER, th, cv2.LINE_AA)
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
-        cv2.circle(fr, (int(at["x"]), int(at["y"])), int(24 * S), WHITE, th, cv2.LINE_AA)
-        cv2.putText(fr, "ball", (int(at["x"]) + int(30 * S), int(at["y"]) - int(18 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.95 * S, WHITE, th, cv2.LINE_AA)
+        bx, by = int(at["x"]) - dx, int(at["y"]) - dy
+        cv2.circle(fr, (bx, by), int(24 * S), WHITE, th, cv2.LINE_AA)
+        cv2.putText(fr, "ball", (bx + int(28 * S), by - int(16 * S)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, WHITE, th, cv2.LINE_AA)
 
+    # EVERY person, not only the ones that cleared the release test.
+    #
+    # The prose caption that used to sit in a black band across the top is gone.
+    # It said in three long lines what the marks already say, it covered the top
+    # of the frame, and he called it wordy and messy. Those facts now render as
+    # HTML under the picture, where they wrap and can be read without competing
+    # with the image.
     placed = []
-    for c in cands:
-        if not c.get("box"):
-            continue
+    for c in sorted(people, key=lambda z: -(z.get("lift") or -9)):
         chosen = pick is not None and c["person"] == pick["person"]
-        lift, gap = c.get("lift"), c.get("gap")
-        col = GREEN if chosen else (RED if (lift or 0) > 0 else GRAY)
+        lift, gap, kp = c.get("lift"), c.get("gap"), c.get("kp")
+        up = (lift or 0) > 0
+        col = GREEN if chosen else (RED if up else GRAY)
         x1, y1, x2, y2 = (int(v) for v in c["box"])
+        x1, x2, y1, y2 = x1 - dx, x2 - dx, y1 - dy, y2 - dy
         cv2.rectangle(fr, (x1, y1), (x2, y2), col, th + (2 if chosen else 0))
-        for k in (shooter.LW, shooter.RW):
-            wpt = c["kp"][k] if c.get("kp") else None
-            if wpt and wpt[2] > 0.3:
-                cv2.circle(fr, (int(wpt[0]), int(wpt[1])), int(11 * S), col, -1, cv2.LINE_AA)
-        tag = ("CHOSEN  " if chosen else "")
-        tag += "hands not read" if lift is None else (
-            f"hands {lift:+.2f} above head" + ("" if gap is None else f", {gap:.2f} from ball"))
-        # Kept inside the frame, and nudged off any label already placed. Boxes
-        # cluster in this footage, so labels drawn at each box's own corner land
-        # on top of each other and clip off the right edge.
-        (tw, tht), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.85 * S, th)
-        tx = min(max(int(8 * S), x1), w - tw - int(8 * S))
-        ty = max(int(26 * S), y1 - int(16 * S))
-        while any(abs(ty - py) < tht * 1.4 and abs(tx - px) < max(tw, pw) * 0.7
-                  for px, py, pw in placed):
-            ty += int(tht * 1.5)
-        placed.append((tx, ty, tw))
-        cv2.putText(fr, tag, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.85 * S, col, th, cv2.LINE_AA)
 
-    # Caption band. Words, not a color key -- an earlier version keyed markers
-    # by color, got BGR backwards, and review reviewed a picture whose own legend
-    # was wrong.
-    lines = [meta["title"], meta["sub"], meta["rule"]]
-    band = int(56 * S * len(lines) + 30 * S)
-    fr[0:band] = (fr[0:band] * 0.22).astype(fr.dtype)
-    for i, s in enumerate(lines):
-        cv2.putText(fr, s, (int(22 * S), int(52 * S + i * 54 * S)), cv2.FONT_HERSHEY_SIMPLEX,
-                    (1.25 if i == 0 else 1.0) * S, WHITE, th, cv2.LINE_AA)
+        # Head level, which is the line "hands up" is measured against. Without
+        # it the lift number is a claim rather than something checkable by eye.
+        hy = shooter.head_y(kp) if kp else None
+        if hy is not None:
+            hy -= dy
+        if hy is not None:
+            cv2.line(fr, (x1, int(hy)), (x2, int(hy)), col, max(1, th - 1), cv2.LINE_AA)
+            cv2.putText(fr, "head", (x2 + int(6 * S), int(hy) + int(6 * S)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, col, max(1, th - 1), cv2.LINE_AA)
+
+        # Wrists, marked up or down against that line rather than by color
+        # alone. A previous version keyed this by color, got BGR backwards, and
+        # review reviewed a picture whose own legend was wrong.
+        for k in (shooter.LW, shooter.RW):
+            wpt = kp[k] if kp else None
+            if not wpt or wpt[2] <= 0.3:
+                continue
+            wx, wy = int(wpt[0]) - dx, int(wpt[1]) - dy
+            above = hy is not None and wy < hy
+            cv2.circle(fr, (wx, wy), int(10 * S), col, -1, cv2.LINE_AA)
+            cv2.putText(fr, "up" if above else "down", (wx + int(13 * S), wy + int(5 * S)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, col, max(1, th - 1), cv2.LINE_AA)
+
+        bits = ["SHOOTER"] if chosen else []
+        bits.append(f"hands {lift:+.2f}" if lift is not None else "hands ?")
+        if gap is not None:
+            bits.append(f"ball {gap:.2f}")
+        tag = "  ".join(bits)
+        (tw, tht), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.62 * S, max(1, th - 1))
+        tx = min(max(int(8 * S), x1), w - tw - int(8 * S))
+        ty = max(int(22 * S), y1 - int(12 * S))
+        while any(abs(ty - py) < tht * 1.5 and abs(tx - px) < max(tw, pw) * 0.75
+                  for px, py, pw in placed):
+            ty += int(tht * 1.6)
+        placed.append((tx, ty, tw))
+        cv2.putText(fr, tag, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.62 * S, col,
+                    max(1, th - 1), cv2.LINE_AA)
     return fr
 
 
@@ -151,6 +238,10 @@ def main():
     pos = YOLO("yolo11s-pose.pt")
 
     pool = hoops.rig_for(args.video).pool
+    # The make/miss model's own call on each shot, so the page can show what the
+    # pipeline thinks happened next to who it thinks shot it.
+    pm = ROOT / f"out/pmake_{args.video.replace('.MOV','')}.json"
+    pmake = json.loads(pm.read_text(encoding="utf-8")) if pm.exists() else {}
     args.out.mkdir(parents=True, exist_ok=True)
     made = []
     for j in shots:
@@ -170,39 +261,34 @@ def main():
             continue
 
         note = (notes.get(n, {}).get("note") or "").strip()
-        if how == "arc":
-            title = (f"#{n}  the throw starts {pick['dist']:.0f}px from this person, "
-                     f"at {pick['t']:.2f}s")
-            rule = (f"amber = the ball's flight: {flight['n']} sightings, {flight['travel']:.0f}px "
-                    f"traveled, fitted to {flight['rms']:.0f}px. green = who it came from.")
-        else:
-            title = (f"#{n}  no flight fitted, so the ball was carried: a dunk. "
-                     f"release at {pick['t']:.2f}s")
-            rule = ("green = chosen: hands up, and nearest the ball as the gap opened.  "
-                    "red = hands up but further away.")
-        meta = {
-            "title": title,
-            "sub": (f"you said: {note}" if note else "no note from you on this one")
-                   + f"   ·   ball seen {len(ball_track)}x   ·   {len(per_person)} people seen",
-            "rule": rule,
-        }
-        # Everyone seen gets a box, not only those who cleared the release test,
-        # so a shooter the rule missed is still visible as a box review can point
-        # at. Showing only the survivors hides exactly the failure worth finding.
-        shown = list(cands)
-        picked_ids = {c["person"] for c in cands}
-        if pick["person"] not in picked_ids and pick.get("box"):
-            shown.append({**pick, "lift": pick.get("lift") or 0.0, "gap": pick.get("gap") or 0.0})
+        people = everyone_at(per_person, pick["t"])
+        if pick.get("box") and not any(p["person"] == pick["person"] for p in people):
+            people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
+
+        sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"])
         out = args.out / f"pose-diag-{n}.jpg"
-        cv2.imwrite(str(out), draw(fr, shown, pick, flight, ball_track, pick["t"], meta),
-                    [cv2.IMWRITE_JPEG_QUALITY, 82])
-        made.append({"n": n, "how": how, "others": len(cands) - 1,
-                     "arc": bool(flight), "note": note})
-        print(f"  #{n}: {how}, {len(cands)} hands-up candidates, "
-              f"arc {'yes' if flight else 'no'} -> {out.name}")
+        cv2.imwrite(str(out), draw(sub, people, pick, flight, ball_track, pick["t"], off),
+                    [cv2.IMWRITE_JPEG_QUALITY, 86])
+        made.append({
+            "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
+            "people": len(people), "handsUp": sum(1 for p in people if (p.get("lift") or 0) > 0),
+            "ballSeen": len(ball_track),
+            "dist": None if pick.get("dist") is None else round(pick["dist"]),
+            "arcN": flight["n"] if flight else None,
+            "arcTravel": round(flight["travel"]) if flight else None,
+            "arcRms": round(flight["rms"], 1) if flight else None,
+            "pMake": pmake.get(str(n)),
+        })
+        print(f"  #{n}: {how}, {len(people)} people boxed, "
+              f"{'arc' if flight else 'no arc'}, pMake {pmake.get(str(n))} -> {out.name}")
     cap.release()
     print(f"\n{len(made)} diagnostic frames written to {args.out}")
     (ROOT / "out/posediag.json").write_text(json.dumps(made, indent=1), encoding="utf-8")
+    # The facts the picture no longer carries. They render as HTML under the
+    # image, where they wrap and can be read, instead of as a black band across
+    # the top of the frame competing with the thing being judged.
+    (args.out / "pose-diag.json").write_text(
+        json.dumps({str(m["n"]): m for m in made}, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":
