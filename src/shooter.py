@@ -380,7 +380,7 @@ def _people_at(per_person, t, hands_up_only=False):
     return out
 
 
-def attribute(ball_track, per_person, rig=None, hoop=None):
+def attribute(ball_track, per_person, rig=None, hoop=None, trace=None):
     """Who shot it, by the arc first and the release shape second.
 
     The release rule answers 5 of 17 shots on IMG_2482 and the reason is not a
@@ -405,6 +405,17 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
     """
     cands = candidates(per_person)
     flight = fit_arc(ball_track)
+    # The reasoning, recorded rather than discarded. The
+    # second half is the point -- a wrong answer tells you a rule misfired, but
+    # only the trail tells you a rule never ran.
+    T = trace if trace is not None else []
+    T.append(("ball", f"seen on {len(ball_track)} frames in the window"))
+    if flight:
+        T.append(("flight", f"parabola fits {flight['n']} sightings, travels "
+                            f"{flight['travel']:.0f}px, residual {flight['rms']:.0f}px"))
+    else:
+        T.append(("flight", "no parabola fits: the ball was carried, so a dunk"))
+    T.append(("hands up", f"{len(cands)} of {len(per_person)} people released with hands above their head"))
 
     if flight:
         # Hands up first, everyone only if nobody had them up. Two passes rather
@@ -415,6 +426,11 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
         hit = None
         for hands_up_only in (True, False):
             people = _people_at(per_person, flight["t"], hands_up_only)
+            if hands_up_only:
+                T.append(("candidates", f"{len(people)} people with hands up, near the ball, "
+                                        f"and in frame at the release"))
+            elif not people:
+                T.append(("candidates", "nobody with hands up qualified; falling back to everyone"))
 
             # Facing decides WHO IS A CANDIDATE, not just how they rank.
             #
@@ -435,6 +451,7 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                 d = (dx * dx + dy * dy) ** 0.5
                 if d <= ADMIT_PX:
                     near.append((pid, box, d))
+                    T.append(("in reach", f"person {pid} is {d:.0f}px from where the throw began"))
             if len(near) > 1 and rig is not None and hoop:
                 r = rig.rims[hoop]
                 tgt = ((r[0] + r[2]) / 2, (r[1] + r[3]) / 2)
@@ -457,9 +474,19 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                 # a green box reading "square" while a neighbour read 100%.
                 out_ = {z[0] for z in scored
                         if z[3] is not None and (z[3] < FACE_AWAY or z[3] == 0.0)}
+                for pid, _b, _d, fv in scored:
+                    if fv is None:
+                        T.append(("facing", f"person {pid}: not readable"))
+                    elif fv == 0.0:
+                        T.append(("facing", f"person {pid}: square on, so probably not shooting"))
+                    else:
+                        T.append(("facing", f"person {pid}: turned "
+                                            f"{'toward' if fv > 0 else 'away from'} the hoop "
+                                            f"({abs(fv)*100:.0f}%)"))
                 if toward and out_:
                     kept = [z[:3] for z in scored if z[0] not in out_]
                     if kept:
+                        T.append(("facing", f"dropped {len(out_)} turned away or square on"))
                         near = kept
             for pid, box, d in near:
                 if d > REACH_PX and len(near) > 1:
@@ -546,14 +573,18 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                     t, (x, y) = best_t, arc.at(flight["fit"], best_t)
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
             snap = per_person[pid]["at"][snaps[0]] if snaps else {}
+            T.append(("chosen", f"person {pid}, nearest the start of the throw at {d:.0f}px"))
             return ({"person": pid, "t": round(t, 2), "dist": round(d, 1),
                      "gap": snap.get("gap"), "lift": snap.get("lift"),
                      "box": snap.get("box"), "kp": snap.get("kp")},
-                    "arc", {"flight": flight, "cands": cands})
+                    "arc", {"flight": flight, "cands": cands, "trace": T})
 
     if cands:
-        return cands[0], "release", {"flight": flight, "cands": cands}
-    return None, "none", {"flight": flight, "cands": cands}
+        T.append(("chosen", f"person {cands[0]['person']}, whose hands the ball left last "
+                            f"({cands[0]['gap']:.2f} shoulder-widths away)"))
+        return cands[0], "release", {"flight": flight, "cands": cands, "trace": T}
+    T.append(("chosen", "nobody: no candidate survived"))
+    return None, "none", {"flight": flight, "cands": cands, "trace": T}
 
 
 def parse_args():

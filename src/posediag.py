@@ -183,7 +183,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None, water=None):
+         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None, water=None, water_mask=None):
     import cv2
 
     dx, dy = off
@@ -209,7 +209,12 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # is that moment. Extending the curve back to it puts its start on the
         # ball in the shooter's hands, which is the thing the picture is claiming.
         t_from = min(flight["t"], t_rel)
-        t_to = flight["t"] + flight["span"]
+        # Run the curve to where the ball ENDS, not to the end of the fitted
+        # segment. The fit stops at its last inlier, which
+        # is wherever the detector last held the ball; the parabola describes the
+        # rest of the flight just as well, and the descent the clip was cut for
+        # is when the ball arrives.
+        t_to = max(flight["t"] + flight["span"], ball_track[-1]["t"] if ball_track else 0)
         fit_draw = flight["fit"]
         if ball_now is not None and flight.get("pts"):
             bx0, by0 = ball_now
@@ -312,6 +317,9 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # make/miss signal found so far -- right 51 times out of 54.
         import dropzone
         q = dropzone.quad(rim, water)
+        if water_mask is not None:
+            q = dropzone.clip_to_water(q, water_mask, (
+                sum(a for a, _ in q) / 4 + dx, sum(b for _, b in q) / 4 + dy))
         cv2.polylines(fr, [np.array([[int(a) - dx, int(b) - dy] for a, b in q], np.int32)],
                       True, DROPC, max(2, th - 2), cv2.LINE_AA)
 
@@ -432,6 +440,8 @@ def main():
     pool = rig.pool
     # The make/miss model's own call on each shot, so the page can show what the
     # pipeline thinks happened next to who it thinks shot it.
+    rwp = ROOT / f"out/rimwatch_{args.video.replace('.MOV','')}.json"
+    rw_hits = json.loads(rwp.read_text(encoding="utf-8"))["hits"] if rwp.exists() else {}
     pm = ROOT / f"out/pmake_{args.video.replace('.MOV','')}.json"
     pmake = json.loads(pm.read_text(encoding="utf-8")) if pm.exists() else {}
     args.out.mkdir(parents=True, exist_ok=True)
@@ -448,6 +458,7 @@ def main():
         # heuristic and facing rules in how model is making decisions about the
         # ones you're asking me to judge."
         pick, how, extra = shooter.attribute(ball_track, per_person, rig=rig, hoop=hoop)
+        trace = list(extra.get("trace") or [])
         flight, cands = extra["flight"], extra["cands"]
         if not pick:
             print(f"  #{n}: no answer ({'no arc fitted' if not flight else 'arc began with nobody near it'}"
@@ -531,13 +542,39 @@ def main():
         # Two or three, from the shooter's hips against this hoop's boundary.
         three, marg = threept.call(rig, j.get("hoop", "left"), pick.get("kp"))
         points = None if three is None else (3 if three else 2)
-        if pick.get("box") and not any(p["person"] == pick["person"] for p in people):
-            people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
 
-        sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
         rr = rig.rims[hoop]
         rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
         tilt = (rig.tilt or {}).get(hoop, 0.0)
+
+        # The outcome half of the trail. The shooter half comes from attribute();
+        # this is what happened to the ball after it left them.
+        import dropzone as _dz
+        pm = pmake.get(str(n))
+        if rw_hits:
+            hits = rw_hits.get(hoop, [])
+            fell = _dz.dropped(hits, rr, float(j["t"])) if hits else None
+            if fell is True:
+                trace.append(("drop zone", "the ball fell into the water under the net"))
+            elif fell is False:
+                trace.append(("drop zone", "the ball never fell under the net, so it did not go in"))
+        if pm is not None:
+            trace.append(("make or miss", f"{'made' if pm >= 0.5 else 'missed'}, "
+                                          f"{(pm if pm >= 0.5 else 1 - pm) * 100:.0f}% sure"))
+        if points:
+            trace.append(("worth", f"{points} points"
+                                   + ("" if marg is None else f", {marg:.1f} rim widths past the line")))
+
+        if pick.get("box") and not any(p["person"] == pick["person"] for p in people):
+            people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
+
+        # The water, for trimming the drop zone off the deck. One mask per shot.
+        _h = cv2.cvtColor(fr, cv2.COLOR_BGR2HSV)
+        _H, _S, _V = _h[:, :, 0].astype(int) * 2, _h[:, :, 1].astype(int), _h[:, :, 2].astype(int)
+        wmask = (((_H >= 165) & (_H <= 215)) & (_S > 60) & (_V > 90)).astype("uint8")
+        wmask = cv2.morphologyEx(wmask, cv2.MORPH_CLOSE, np.ones((21, 21), np.uint8))
+
+        sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
         out = args.out / f"pose-diag-{n}.jpg"
         cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr,
                              rim_tilt=tilt, ball_now=ball_now),
@@ -547,7 +584,7 @@ def main():
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
                              three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt, ball_now=ball_now,
-                             water=(rig.water or {}).get(hoop)),
+                             water=(rig.water or {}).get(hoop), water_mask=wmask),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
@@ -558,6 +595,7 @@ def main():
             "arcTravel": round(flight["travel"]) if flight else None,
             "arcRms": round(flight["rms"], 1) if flight else None,
             "pMake": pmake.get(str(n)),
+            "trace": [{"step": a, "said": b} for a, b in trace],
             "points": points, "threeMargin": None if marg is None else round(marg, 2),
             "hoop": j.get("hoop", "left"),
             "rim": [round(v) for v in rr], "tilt": tilt,

@@ -68,3 +68,39 @@ def dropped(hits, rim, t_descent, window=WINDOW_S):
         if bx1 <= h["x"] <= bx2 and by1 <= h["y"] <= by2:
             return True
     return False
+
+
+def clip_to_water(quad_pts, water_mask, center):
+    """Pull any corner that is not on water back toward `center` until it is.
+
+ The parallelogram follows the waterline correctly along
+    its top edge, but the pool turns a corner under one hoop, so an end of the
+    zone can still cross onto the deck.
+
+    Trimming per corner rather than shrinking the whole box keeps as much real
+    water as possible, which matters: this rule's value is its recall, and every
+    square foot of water given up is a make it can no longer catch.
+    """
+    h, w = water_mask.shape[:2]
+
+    def wet(pt):
+        x, y = int(pt[0]), int(pt[1])
+        return 0 <= x < w and 0 <= y < h and water_mask[y, x] > 0
+
+    out = []
+    for pt in quad_pts:
+        if wet(pt):
+            out.append((int(pt[0]), int(pt[1])))
+            continue
+        # Walk toward the center until the water starts, then stop.
+        px, py = float(pt[0]), float(pt[1])
+        cx, cy = float(center[0]), float(center[1])
+        found = (int(cx), int(cy))
+        for i in range(1, 41):
+            f = i / 40.0
+            q = (px + (cx - px) * f, py + (cy - py) * f)
+            if wet(q):
+                found = (int(q[0]), int(q[1]))
+                break
+        out.append(found)
+    return out
