@@ -93,7 +93,19 @@ def others_in_frame(fr, known, pos, pool, conf=0.25):
             kx1, ky1, kx2, ky2 = k["box"]
             ox = max(0, min(bx2, kx2) - max(bx1, kx1))
             oy = max(0, min(by2, ky2) - max(by1, ky1))
-            if ox * oy > 0.3 * min((bx2 - bx1) * (by2 - by1), (kx2 - kx1) * (ky2 - ky1)):
+            # Overlap alone was not enough. The decision pass boxes a shooter
+            # from raised hand to hip while the drawing pass boxes the torso, so
+            # the same person came back as two boxes whose overlap fell under any
+            # sane area threshold -- review saw one person wearing a black box and
+            # a green one. Center containment catches it: two boxes on one person
+            # always contain each other's middle, however differently they are
+            # cropped.
+            if ox * oy > 0.25 * min((bx2 - bx1) * (by2 - by1), (kx2 - kx1) * (ky2 - ky1)):
+                dup = True
+                break
+            mx, my = (bx1 + bx2) / 2, (by1 + by2) / 2
+            kmx, kmy = (kx1 + kx2) / 2, (ky1 + ky2) / 2
+            if (kx1 <= mx <= kx2 and ky1 <= my <= ky2) or (bx1 <= kmx <= bx2 and by1 <= kmy <= by2):
                 dup = True
                 break
         if dup:
@@ -156,7 +168,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         quad=None, hoop_side="left"):
+         hoop_center=None):
     import cv2
 
     dx, dy = off
@@ -193,31 +205,26 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         cv2.line(fr, (ox - r0, oy), (ox + r0, oy), AMBER, th, cv2.LINE_AA)
         cv2.line(fr, (ox, oy - r0), (ox, oy + r0), AMBER, th, cv2.LINE_AA)
 
-    # ONE boundary, for the hoop this shot went to, shaded rather than drawn as a
-    # bare line. Two lines with two labels was
-    # unreadable, and half of it was about a hoop the ball never went near.
-    if three and quad:
+    # ONE boundary, for the hoop this shot went to, shaded on the side away from
+    # that hoop. The side test runs per pixel rather than by building a polygon:
+    # the line crosses the frame at an arbitrary angle and clipping a half-plane
+    # to a rectangle by hand is where the off-by-one bugs live.
+    if three and hoop_center is not None:
         (lx1, ly1), (lx2, ly2) = three
-        near = np.array(quad["near"], float)
-        far = np.array(quad["far"], float)
-        vp = np.array(quad["vp"], float)
-        p_near = np.array([lx1, ly1], float)
-        p_far = np.array([lx2, ly2], float)
-        # The three-point side is the side AWAY from the hoop: toward the far end
-        # of the pool for the near hoop, and toward the vanishing point for the
-        # other, which is what makes it a region rather than a half-plane over
-        # the whole photograph.
-        poly = ([p_near, p_far, far, near] if hoop_side == "right"
-                else [p_near, p_far, vp])
-        poly = np.array([[int(p[0]) - dx, int(p[1]) - dy] for p in poly], np.int32)
+        ax, ay = lx1 - dx, ly1 - dy
+        bx_, by_ = lx2 - dx, ly2 - dy
+        yy, xx = np.mgrid[0:fr.shape[0], 0:fr.shape[1]]
+        side = (bx_ - ax) * (yy - ay) - (by_ - ay) * (xx - ax)
+        hx, hy_ = hoop_center[0] - dx, hoop_center[1] - dy
+        hside = (bx_ - ax) * (hy_ - ay) - (by_ - ay) * (hx - ax)
+        far = (side > 0) if hside < 0 else (side < 0)
         shade = fr.copy()
-        cv2.fillPoly(shade, [poly], LINE3)
-        cv2.addWeighted(shade, 0.22, fr, 0.78, 0, fr)
-        cv2.line(fr, (int(lx1) - dx, int(ly1) - dy), (int(lx2) - dx, int(ly2) - dy),
-                 LINE3, th + 1, cv2.LINE_AA)
-        mid = ((int(lx1) + int(lx2)) // 2 - dx, (int(ly1) + int(ly2)) // 2 - dy)
-        cv2.putText(fr, "3 from here back", (mid[0] - int(210 * S), mid[1]),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.72 * S, LINE3, th, cv2.LINE_AA)
+        shade[far] = LINE3
+        cv2.addWeighted(shade, 0.20, fr, 0.80, 0, fr)
+        cv2.line(fr, (int(ax), int(ay)), (int(bx_), int(by_)), LINE3, th + 1, cv2.LINE_AA)
+        cv2.circle(fr, (int(bx_), int(by_)), int(14 * S), LINE3, -1, cv2.LINE_AA)
+        cv2.putText(fr, "3 from this side", (int(ax) - int(300 * S), int(ay) - int(20 * S)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, LINE3, th, cv2.LINE_AA)
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -356,10 +363,12 @@ def main():
         cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
         line = (rig.three_lines or {}).get(hoop)
-        if line and rig.quad:
+        rr = rig.rims[hoop]
+        rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
+        if line:
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
-                             three=line, quad=rig.quad, hoop_side=hoop),
+                             three=line, hoop_center=rim_center),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),

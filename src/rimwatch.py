@@ -42,6 +42,11 @@ def parse_args():
     p.add_argument("--step", type=int, default=1, help="frame stride")
     p.add_argument("--model", default="yolo11s.pt")
     p.add_argument("--out", type=Path, default=Path("out/rimwatch.json"))
+    # Override the rig's detector padding, so the crop's effect on how much of a
+    # descent is visible can be measured rather than argued about. A tighter crop
+    # makes the ball bigger to the model and shortens the vertical span the
+    # flight is seen over, and those pull in opposite directions.
+    p.add_argument("--pad", default="", help="PX_X,PX_Y to override the detector crop")
     return p.parse_args()
 
 
@@ -56,6 +61,11 @@ def main():
     from ultralytics import YOLO
 
     rig = rig_for(args.video)
+    if args.pad:
+        import hoops
+        px, py = (int(v) for v in args.pad.split(","))
+        rig = hoops.Rig(rims=rig.rims, crops=rig.crops, pool=rig.pool,
+                        dets={k: hoops._crop_around(v, px, py) for k, v in rig.rims.items()})
     model = YOLO(args.model)
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0

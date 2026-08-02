@@ -303,7 +303,15 @@ def fit_arc(ball_track):
     hits = [{"conf": b.get("conf", 0.5), **b, "frame": int(round(b["t"] * fps))}
             for b in ball_track]
     hits, _ = drop_parked(hits)
+    # THE track that ends at the hoop, not the best-looking track anywhere in the
+    # window. Choosing by point count picked whichever ball had the longest clean
+    # flight, and with more than one ball in the pool that is regularly a
+    # different shot entirely: review saw a parabola drawn across open water far
+    # from the ball in frame, and a release frame from before the shooter had
+    # even collected the rebound. The window ends at the descent this clip was
+    # cut for, so the right track is the one still in the air at the end of it.
     best = None
+    t_end = max(b["t"] for b in ball_track)
     for pts in build_tracks(hits):
         got = arc.release(pts)
         if not got:
@@ -311,13 +319,15 @@ def fit_arc(ball_track):
         travel = ((pts[-1]["x"] - pts[0]["x"]) ** 2 + (pts[-1]["y"] - pts[0]["y"]) ** 2) ** 0.5
         if travel < MIN_TRAVEL_PX:
             continue
-        if best is None or got["n"] > best[0]["n"]:
-            best = (got, travel)
-    if not best:
-        return None
-    got, travel = best
-    got["travel"] = round(travel, 1)
-    return got
+        lateness = t_end - pts[-1]["t"]
+        if best is None or lateness < best[1] - 0.15 or (
+                abs(lateness - best[1]) <= 0.15 and got["n"] > best[0]["n"]):
+            best = (got, lateness, travel)
+    if best:
+        got, _lateness, travel = best
+        got["travel"] = round(travel, 1)
+        return got
+    return None
 
 
 REACH_PX = 110      # how close the arc's origin must come to count as "their hands"

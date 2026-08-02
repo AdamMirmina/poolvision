@@ -127,12 +127,17 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
-# A post gives a POINT; a boundary needs a direction, and under perspective the
-# cross-pool direction is neither vertical nor constant. The pool's two long
-# sides converge at a vanishing point, so every line that crosses the pool in the
-# real world passes through that same point in the image. Each post is projected
-# onto the near edge and the matching fraction taken along the far edge, which
-# makes these constructed rather than drawn by hand.
+# A post gives a POINT; a boundary needs a direction. The first attempt ran the
+# line across the pool's WIDTH, from the near edge to the far edge, and review
+# corrected it: "your 3pt line should be orthogonal to where it is now ... wall
+# should extend all the way through the deep end and generate another purple post
+# where it ends by the diving board."
+#
+# So it runs the length of the pool instead, from the deck post out past the
+# diving board, and it separates the deep end from the shallow end. Two measured
+# points define it: the post, and where it ends by the board. Both hoops' lines
+# take the same direction, since the posts sit a few feet apart and the
+# convergence between them is far below the accuracy this call needs.
 #
 # Which post serves which hoop is the own rule, not an inference: "if someone
 # is shooting on right hoop and they're behind the left post it's a 3."
@@ -143,8 +148,8 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 _S0729_QUAD = {"near": (954, 1909), "far": (1539, 224), "vp": (3839, 1286)}
 
 _S0729_THREE = {
-    "right": ((2627, 1547), (2873, 840)),
-    "left": ((2892, 1490), (3084, 937)),
+    "left": ((2931, 1670), (1644, -355)),
+    "right": ((2665, 1720), (1378, -305)),
 }
 
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
