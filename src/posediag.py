@@ -84,13 +84,18 @@ def others_in_frame(fr, known, pos, pool, conf=0.25):
     if r.keypoints is None:
         return []
     out = []
+    # Compare against what this pass has ALREADY accepted, not only against the
+    # caller's list. Since the drawing moved to a single pose pass, `known`
+    # arrives empty, so nothing was checking a detection against its own
+    # neighbours and one person could come back as two overlapping boxes with
+    # two pairs of wrists --
     for i in range(len(r.boxes)):
         bx1, by1, bx2, by2 = r.boxes.xyxy[i].tolist()
         cx, cy = (bx1 + bx2) / 2, (by1 + by2) / 2
         if not (pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]):
             continue
         dup = False
-        for k in known:
+        for k in list(known) + out:
             kx1, ky1, kx2, ky2 = k["box"]
             ox = max(0, min(bx2, kx2) - max(bx1, kx1))
             oy = max(0, min(by2, ky2) - max(by1, ky1))
