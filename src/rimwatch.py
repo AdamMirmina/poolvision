@@ -52,6 +52,7 @@ def log(m):
 def main():
     args = parse_args()
     import cv2
+    import numpy as np
     from ultralytics import YOLO
 
     rig = rig_for(args.video)
@@ -62,33 +63,70 @@ def main():
     cap.set(cv2.CAP_PROP_POS_FRAMES, start)
     log(f"rimwatch {args.t0:.0f}s-{args.t1:.0f}s ({end-start} frames), conf {args.conf}, imgsz {args.imgsz}")
 
-    hits = {k: [] for k in rig.crops}
+    # Both hoops in ONE inference, stacked into a single canvas.
+    #
+    # The obvious version runs the model once per hoop, which is two calls a
+    # frame, and on this laptop each call is ~170ms -- six hours for the shootout
+    # alone, before any of the steps that actually answer anything. Stacking the
+    # two tight crops vertically costs one call instead of two AND lands at a
+    # better scale than the wide crops did (0.74 against 0.60), because imgsz
+    # fits the LONG side and two tall-ish crops stacked are still shorter than
+    # one wide crop is wide. Half the time and a bigger ball, from the same model.
+    det = rig.det_boxes()
+    order = sorted(det)
+    cw = max(det[k][2] - det[k][0] for k in order)
+    offs, y = {}, 0
+    for k in order:
+        offs[k] = y
+        y += det[k][3] - det[k][1]
+    canvas = np.zeros((y, cw, 3), dtype=np.uint8)
+    log(f"stacked canvas {cw}x{y} from {len(order)} hoops: "
+        + ", ".join(f"{k} {det[k][2]-det[k][0]}x{det[k][3]-det[k][1]}" for k in order))
+
+    hits = {k: [] for k in det}
     f = start
     t0 = time.time()
     while f < end:
-        ok, fr = cap.read()
-        if not ok:
+        # grab() advances the decoder without paying for the color conversion
+        # and copy; retrieve() only happens on frames actually looked at. The
+        # earlier version called read() every iteration while advancing `f` by
+        # `step`, so with any stride above 1 it predicted on consecutive frames
+        # but stamped them with strided frame numbers -- every timestamp came out
+        # scaled by the stride. Harmless at the old default of 1, and it would
+        # have quietly wrecked a whole night at 2.
+        if not cap.grab():
             break
         if (f - start) % args.step == 0:
-            for name, (x1, y1, x2, y2) in rig.crops.items():
-                crop = fr[y1:y2, x1:x2]
-                r = model.predict(crop, conf=args.conf, verbose=False,
-                                  classes=[SPORTS_BALL], imgsz=args.imgsz)[0]
-                if r.boxes is None or not len(r.boxes):
-                    continue
+            ok, fr = cap.retrieve()
+            if not ok:
+                break
+            canvas[:] = 0
+            for name in order:
+                x1, y1, x2, y2 = det[name]
+                canvas[offs[name]:offs[name] + (y2 - y1), 0:x2 - x1] = fr[y1:y2, x1:x2]
+            r = model.predict(canvas, conf=args.conf, verbose=False,
+                              classes=[SPORTS_BALL], imgsz=args.imgsz)[0]
+            if r.boxes is not None and len(r.boxes):
                 for bx in r.boxes:
                     bx1, by1, bx2, by2 = bx.xyxy[0].tolist()
-                    # back to full-frame coordinates
+                    cy = (by1 + by2) / 2
+                    # Which hoop's band did this land in, and where in the frame
+                    # was that band taken from.
+                    name = order[0]
+                    for k in order:
+                        if cy >= offs[k]:
+                            name = k
+                    x1, y1, x2, y2 = det[name]
                     hits[name].append({
                         "frame": f,
                         "t": round(f / fps, 2),
                         "x": round(x1 + (bx1 + bx2) / 2, 1),
-                        "y": round(y1 + (by1 + by2) / 2, 1),
+                        "y": round(y1 + cy - offs[name], 1),
                         "conf": round(float(bx.conf.item()), 3),
                         "w": round(bx2 - bx1, 1),
                     })
-        f += args.step
-        if (f - start) % 900 == 0:
+        f += 1
+        if (f - start) % 1800 == 0:
             done, tot = f - start, end - start
             n = sum(len(v) for v in hits.values())
             log(f"  {done}/{tot} frames, {time.time()-t0:.0f}s, {n} rim-region detections")
@@ -99,6 +137,7 @@ def main():
         "window_s": [args.t0, args.t1],
         "conf": args.conf,
         "boxes": rig.crops,
+        "det_boxes": det,
         "hits": hits,
     }, indent=1), encoding="utf-8")
     for k, v in hits.items():

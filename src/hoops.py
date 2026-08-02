@@ -23,14 +23,28 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Rig:
-    """One camera setup: the rim boxes, and the generous crop fed to the detector.
+    """One camera setup: the rim boxes, and the two crops taken around them.
 
-    `rims` are tight on the hoop, for geometry. `crops` are much wider, because
-    the detector needs the ball's approach and its exit in frame, and a tight
-    crop on the rim hides exactly the evidence a human reviewer needs too.
+    `rims` are tight on the hoop, for geometry.
+
+    `crops` are wide, and they are what a person watches. A clip cropped tight on
+    the rim shows a ball appearing and disappearing with no shooter and no
+    approach, which is useless for judging who shot or whether it went in.
+
+    `dets` are tight, and they are what the detector sees. These were the same
+    box until 2026-08-01, and sharing it was costing accuracy and time at once: a
+    1063x888 crop fed to a 640 model is downscaled to 0.60, so a 35px ball
+    arrives as 21px, right at the edge of what the detector holds on to. Tight
+    crops arrive near native size AND stack into a single inference per frame
+    instead of one per hoop.
     """
     rims: dict[str, tuple[int, int, int, int]]
     crops: dict[str, tuple[int, int, int, int]]
+    dets: dict[str, tuple[int, int, int, int]] | None = None
+
+    def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
+        """The detector's crops, falling back to the review crops for old rigs."""
+        return self.dets if self.dets else self.crops
 
 
 def _crop_around(rim: tuple[int, int, int, int], pad_x: int, pad_y: int,
@@ -56,15 +70,22 @@ _S0729_RIMS = {
 # whole scene is framed from further round the corner.
 #
 # Measured off an averaged frame -- several frames blended so swimmers and
-# splashes average away and only the fixed furniture remains -- then drawn and
-# checked by eye THREE times. The first estimate clipped the right and bottom of
-# both rims; the second still cut off the top, which review caught: seen from above
-# a rim is an ellipse whose FAR edge sits highest in frame, and it is easy to
-# place the top against the near edge instead. Worth the three passes. A wrong
-# box costs an overnight run and reads as a detector failure in the morning.
+# splashes average away and only the fixed furniture remains. Three hand-drawn
+# passes got boxes that contained both rims but sat loose around them, and loose
+# is not good enough: the box center feeds the strongest make/miss feature and
+# the box width is the unit everything else is normalized by, so slack in the box
+# is slack in every number downstream. The hand-drawn right box was 204x108 for a
+# rim that is actually 164x60.
+#
+# So the ring is found by its own color instead. The right rim fits an ellipse
+# cleanly. The LEFT does not, and the reason is worth keeping: its red mask
+# catches only part of the ring (the far arc washes out against the deck), and
+# cv2.fitEllipse on a partial arc extrapolates a much bigger ellipse than the one
+# you can see -- 265px wide for a contour spanning 146px. Its box is measured off
+# the visible ring in a 4x zoom rather than trusting that fit.
 _S0801_RIMS = {
-    "left": (850, 1018, 1040, 1132),
-    "right": (3378, 650, 3582, 758),
+    "left": (837, 1026, 1040, 1114),
+    "right": (3378, 676, 3542, 736),
 }
 
 RIGS: dict[str, Rig] = {
@@ -77,6 +98,9 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
     RIGS[_name] = Rig(
         rims=_S0801_RIMS,
         crops={k: _crop_around(v, 430, 400) for k, v in _S0801_RIMS.items()},
+        # 250x180 of padding is about five ball diameters clear of the rim on
+        # every side, which is all the detector needs to see a descent through.
+        dets={k: _crop_around(v, 250, 180) for k, v in _S0801_RIMS.items()},
     )
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
     RIGS[_name] = Rig(

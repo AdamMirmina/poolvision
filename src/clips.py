@@ -164,7 +164,6 @@ def windows(events):
 
 def main():
     args = parse_args()
-    import cv2
 
     rig = rig_for(args.video)
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
@@ -172,39 +171,36 @@ def main():
     bounds = windows(events)
     print(f"{len(events)} shots (one descent each)")
 
-    cap = cv2.VideoCapture(str(args.video))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    fps = 60.0 if "2528" in args.video.name or "2529" in args.video.name else 30.0
     args.out.mkdir(parents=True, exist_ok=True)
     index = []
 
     for i, (hoop, dets) in enumerate(events, 1):
         x1, y1, x2, y2 = rig.crops[hoop]
         t_start, t_stop = bounds[i - 1]
-        f0, f1 = int(t_start * fps), int(t_stop * fps)
         h = int(OUT_W * (y2 - y1) / (x2 - x1)) // 2 * 2   # even height for yuv420p
         name = f"shot_{i:03d}_{hoop}_{dets[0]['t']:.0f}s.mp4"
         path = args.out / name
 
-        proc = subprocess.Popen(
+        # ffmpeg seeks, crops and encodes in one pass; nothing is decoded in
+        # Python at all. The previous version pulled frames through OpenCV and
+        # seeked with CAP_PROP_POS_FRAMES, which is fine on a 3GB 1080p file and
+        # catastrophic on a 15GB 4K60 one -- a single seek to frame 36000 ran
+        # past ten minutes without returning. At one seek per shot and roughly a
+        # hundred shots that is not a slow step, it is a step that never
+        # finishes. `-ss` BEFORE `-i` seeks on the container index instead of
+        # decoding forward to the target.
+        proc = subprocess.run(
             [FFMPEG, "-y", "-loglevel", "error",
-             "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{OUT_W}x{h}", "-r", f"{fps:.3f}",
-             "-i", "-",
+             "-ss", f"{t_start:.3f}", "-i", str(args.video), "-t", f"{t_stop - t_start:.3f}",
+             "-vf", f"crop={x2-x1}:{y2-y1}:{x1}:{y1},scale={OUT_W}:{h}",
              "-c:v", "libx264", "-crf", str(CRF), "-preset", "veryfast",
-             "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(path)],
-            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
-        n = 0
-        for f in range(f0, f1):
-            ok, fr = cap.read()
-            if not ok:
-                break
-            proc.stdin.write(cv2.resize(fr[y1:y2, x1:x2], (OUT_W, h)).tobytes())
-            n += 1
-        proc.stdin.close()
-        err = proc.stderr.read().decode("utf-8", "replace").strip()
-        proc.wait()
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(path)],
+            capture_output=True)
+        err = proc.stderr.decode("utf-8", "replace").strip()
         if err:
             print(f"    ffmpeg: {err[:200]}")
+        n = int(round((t_stop - t_start) * fps))
 
         index.append({
             "n": i,
@@ -222,7 +218,6 @@ def main():
         })
         print(f"  {name}  {n} frames, {index[-1]['size_kb']} KB")
 
-    cap.release()
     (args.out / "index.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
     total = sum(c["size_kb"] for c in index)
     print(f"wrote {len(index)} clips, {total/1024:.1f} MB total -> {args.out}")
