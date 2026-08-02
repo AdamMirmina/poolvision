@@ -80,26 +80,34 @@ def facing(kp):
 MIN_SHOULDER_PX = 26.0
 
 
-def usable_for(rig, hoop):
-    """Whether facing can be trusted for shots at this hoop, on this camera.
+def orientation(rig, hoop):
+    """+1 if facing reads true for this hoop, -1 if it reads inverted, 0 if unusable.
 
-    Measured, and the answer is not uniform: at the NEAR hoop the shooter is
-    facing it on 12 of 13 shots; at the FAR hoop, 10 of 23, which is chance.
-    Requiring face or ear keypoints did not rescue the far case (8 of 21), so
-    this is geometry rather than detection quality. A player shooting at the far
-    hoop is turned away from the camera, and a facing vector pointing along the
-    viewing axis has almost no length once projected, so its direction is decided
-    by noise.
+    The far hoop is not noisy, it is INVERTED, and that took a second look to
+    see. Measured on 32 attributed shots: the near hoop has the shooter facing
+    it on 11 of 12 with a median of +0.52; the far hoop reads 6 of 20 with a
+    median of -0.51. Noise would sit near zero. A consistent -0.51 is a
+    consistent reading of "facing away".
 
-    The near hoop is whichever has the wider rim box, since a rim's apparent
-    width is its distance from this camera. That makes this a property of the
-    camera position, which is exactly what the rig already describes, rather than
-    a constant tuned to one video.
+    The cause is the same geometry that first looked like an absence of signal.
+    A shooter at the far hoop is turned away from the camera, so their face
+    keypoints are not visible and the front/back call falls back to shoulder
+    order, which lands on the wrong side of the body. Correcting for it takes
+    the far hoop to 14 of 20 (+0.51) and both hoops together to 25 of 32.
+
+    This is not fitted to the labels. Which hoop is far follows from the camera
+    alone -- a rim's apparent width IS its distance -- so the correction is
+    predictable for a new session before seeing a single shot from it.
     """
     if not getattr(rig, "rims", None) or hoop not in rig.rims:
-        return False
+        return 0
     widths = {k: v[2] - v[0] for k, v in rig.rims.items()}
-    return hoop == max(widths, key=widths.get)
+    return 1 if hoop == max(widths, key=widths.get) else -1
+
+
+def usable_for(rig, hoop):
+    """Kept for callers that only need to know whether to bother."""
+    return orientation(rig, hoop) != 0
 
 
 def readable(kp):

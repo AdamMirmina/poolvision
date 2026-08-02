@@ -432,6 +432,8 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                         r = rig.rims[hoop]
                         face = facing.toward(kp, ((r[0] + r[2]) / 2, (r[1] + r[3]) / 2),
                                              facing.body_center(kp, snap.get("box")))
+                        if face is not None:
+                            face *= facing.orientation(rig, hoop)
                 score = d - (0 if face is None else face * 60.0)
                 if hit is None or score < hit[5]:
                     hit = (pid, d, flight["t"], flight["x"], flight["y"], score)
