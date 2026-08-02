@@ -52,8 +52,8 @@ WRIST_UP = (60, 235, 245)     # yellow
 WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
 RIMC = (60, 235, 245)      # yellow, on the ask
-DROPC = (235, 200, 60)     # the drop zone under the net
-FACEC = (255, 130, 220)    # which way a person is turned
+DROPC = (70, 70, 70)       # dark gray, on the ask
+FACEC = (0, 0, 0)          # which way a person is turned; black, on the ask
 
 
 def everyone_at(per_person, t):
@@ -183,7 +183,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None):
+         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None, water=None):
     import cv2
 
     dx, dy = off
@@ -311,9 +311,9 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # appears in here did not go through the hoop, which is the strongest
         # make/miss signal found so far -- right 51 times out of 54.
         import dropzone
-        dz = dropzone.box(rim)
-        cv2.rectangle(fr, (dz[0] - dx, dz[1] - dy), (dz[2] - dx, dz[3] - dy),
-                      DROPC, max(2, th - 2))
+        q = dropzone.quad(rim, water)
+        cv2.polylines(fr, [np.array([[int(a) - dx, int(b) - dy] for a, b in q], np.int32)],
+                      True, DROPC, max(2, th - 2), cv2.LINE_AA)
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -372,7 +372,7 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             d_, mag = sd
             hx = (x1 + x2) / 2
             ay0 = int(hy - 40 * S)
-            acol = FACEC if d_ else (160, 160, 160)
+            acol = FACEC
             if d_:
                 L = int(38 * S)
                 cv2.arrowedLine(fr, (int(hx - d_ * L * 0.5), ay0),
@@ -546,8 +546,8 @@ def main():
         if line:
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
-                             three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt,
-                             ball_now=ball_now),
+                             three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt, ball_now=ball_now,
+                             water=(rig.water or {}).get(hoop)),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),

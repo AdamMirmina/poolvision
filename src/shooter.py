@@ -449,9 +449,16 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                     fv = facing.side_toward(kp, tgt[0], bc[0] if bc else None) if kp else None
                     scored.append((pid, box, d, fv))
                 toward = [z for z in scored if z[3] is not None and z[3] > FACE_TOWARD]
-                away = {z[0] for z in scored if z[3] is not None and z[3] < FACE_AWAY}
-                if toward and away:
-                    kept = [z[:3] for z in scored if z[0] not in away]
+                # Turned away, OR square on. the rule has three states, not
+                # two: "if they're opposite sides, they're facing forward or back
+                # and probably aren't the shooter." Square was being treated as
+                # neutral, which meant a straddler could still be chosen over
+                # someone squarely pointed at the hoop -- he caught exactly that,
+                # a green box reading "square" while a neighbour read 100%.
+                out_ = {z[0] for z in scored
+                        if z[3] is not None and (z[3] < FACE_AWAY or z[3] == 0.0)}
+                if toward and out_:
+                    kept = [z[:3] for z in scored if z[0] not in out_]
                     if kept:
                         near = kept
             for pid, box, d in near:

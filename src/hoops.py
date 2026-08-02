@@ -71,6 +71,13 @@ class Rig:
     # a little." Image y grows downward, so raising the right side is a negative
     # angle.
     tilt: dict[str, float] | None = None
+    # Where the water begins under each hoop, and which way the pool wall runs
+    # there. The drop zone has to sit fully IN the water and follow the wall, so
+    # it is a parallelogram sheared to the wall's slope rather than an
+    # axis-aligned rectangle. Both are measured, not eyeballed: walk down columns
+    # under the rim until the water mask starts, and fit a line through those
+    # entry points -- its intercept is the waterline and its slope is the wall.
+    water: dict[str, dict] | None = None
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""
@@ -178,6 +185,7 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         three_lines=_S0729_THREE,
         tilt={"left": -9.0, "right": 9.0},
         quad=_S0729_QUAD,
+        water={"left": {"water_y_at_center": 1229.9547738693468, "slope": -0.7172290021536254}, "right": {"water_y_at_center": 981.2857142857154, "slope": 0.6796703296703296}},
     )
 
 
