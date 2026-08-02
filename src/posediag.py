@@ -41,8 +41,7 @@ ASSETS = Path("C:/dev/poolean/web/public/assets")
 # spent a round of review on a picture whose own key was wrong. Every marker here
 # is labeled with WORDS on the image, not by color alone.
 GREEN = (80, 220, 80)
-RED = (60, 60, 235)
-GRAY = (150, 150, 150)
+BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 AMBER = (40, 190, 250)
 # Wrists are colored by what they SAY, not by whose box they sit in. Right: a marker
@@ -71,6 +70,36 @@ def everyone_at(per_person, t):
             continue
         out.append({"person": key, "box": s["box"], "kp": s.get("kp"),
                     "gap": s.get("gap"), "lift": s.get("lift")})
+    return out
+
+
+def others_in_frame(fr, known, pos, pool, conf=0.25):
+    """People the decision never saw, for the picture only.
+
+    Matched against the boxes already found by overlap, so a person seen by both
+    passes is not drawn twice with two slightly different boxes.
+    """
+    r = pos.predict(fr, conf=conf, verbose=False, imgsz=1280)[0]
+    if r.keypoints is None:
+        return []
+    out = []
+    for i in range(len(r.boxes)):
+        bx1, by1, bx2, by2 = r.boxes.xyxy[i].tolist()
+        cx, cy = (bx1 + bx2) / 2, (by1 + by2) / 2
+        if not (pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]):
+            continue
+        dup = False
+        for k in known:
+            kx1, ky1, kx2, ky2 = k["box"]
+            ox = max(0, min(bx2, kx2) - max(bx1, kx1))
+            oy = max(0, min(by2, ky2) - max(by1, ky1))
+            if ox * oy > 0.3 * min((bx2 - bx1) * (by2 - by1), (kx2 - kx1) * (ky2 - ky1)):
+                dup = True
+                break
+        if dup:
+            continue
+        out.append({"person": f"x{i}", "box": (bx1, by1, bx2, by2),
+                    "kp": r.keypoints.data[i].tolist(), "gap": None, "lift": None})
     return out
 
 
@@ -160,9 +189,9 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
                 cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
                            AMBER, -1, cv2.LINE_AA)
         ox, oy = int(flight["x"]) - dx, int(flight["y"]) - dy
-        cv2.circle(fr, (ox, oy), int(20 * S), AMBER, th, cv2.LINE_AA)
-        cv2.putText(fr, "throw starts", (ox + int(26 * S), oy + int(7 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, AMBER, th, cv2.LINE_AA)
+        r0 = int(13 * S)
+        cv2.line(fr, (ox - r0, oy), (ox + r0, oy), AMBER, th, cv2.LINE_AA)
+        cv2.line(fr, (ox, oy - r0), (ox, oy + r0), AMBER, th, cv2.LINE_AA)
 
     # ONE boundary, for the hoop this shot went to, shaded rather than drawn as a
     # bare line. Two lines with two labels was
@@ -193,9 +222,7 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
         bx, by = int(at["x"]) - dx, int(at["y"]) - dy
-        cv2.circle(fr, (bx, by), int(24 * S), WHITE, th, cv2.LINE_AA)
-        cv2.putText(fr, "ball", (bx + int(28 * S), by - int(16 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, WHITE, th, cv2.LINE_AA)
+        cv2.circle(fr, (bx, by), int(18 * S), WHITE, th, cv2.LINE_AA)
 
     # EVERY person, not only the ones that cleared the release test.
     #
@@ -209,7 +236,7 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         chosen = pick is not None and c["person"] == pick["person"]
         lift, gap, kp = c.get("lift"), c.get("gap"), c.get("kp")
         up = (lift or 0) > 0
-        col = GREEN if chosen else (RED if up else GRAY)
+        col = GREEN if chosen else BLACK
         x1, y1, x2, y2 = (int(v) for v in c["box"])
         x1, x2, y1, y2 = x1 - dx, x2 - dx, y1 - dy, y2 - dy
         cv2.rectangle(fr, (x1, y1), (x2, y2), col, th + (2 if chosen else 0))
@@ -221,8 +248,6 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             hy -= dy
         if hy is not None:
             cv2.line(fr, (x1, int(hy)), (x2, int(hy)), col, max(1, th - 1), cv2.LINE_AA)
-            cv2.putText(fr, "head", (x2 + int(6 * S), int(hy) + int(6 * S)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, col, max(1, th - 1), cv2.LINE_AA)
 
         # Wrists, marked up or down against that line rather than by color
         # alone. A previous version keyed this by color, got BGR backwards, and
@@ -236,14 +261,12 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             wcol = WRIST_UP if above else WRIST_DOWN
             cv2.circle(fr, (wx, wy), int(10 * S), wcol, -1, cv2.LINE_AA)
             cv2.circle(fr, (wx, wy), int(10 * S), (20, 20, 20), max(1, th - 2), cv2.LINE_AA)
-            cv2.putText(fr, "up" if above else "down", (wx + int(13 * S), wy + int(5 * S)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, wcol, max(1, th - 1), cv2.LINE_AA)
 
-        bits = ["SHOOTER"] if chosen else []
-        bits.append(f"hands {lift:+.2f}" if lift is not None else "hands ?")
-        if gap is not None:
-            bits.append(f"ball {gap:.2f}")
-        tag = "  ".join(bits)
+        # Only the shooter is labeled. Everyone else is a box, a head line and
+        # two wrist markers, which already say everything the numbers did.
+        tag = "SHOOTER" if chosen else ""
+        if not tag:
+            continue
         (tw, tht), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.62 * S, max(1, th - 1))
         tx = min(max(int(8 * S), x1), w - tw - int(8 * S))
         ty = max(int(22 * S), y1 - int(12 * S))
@@ -307,6 +330,20 @@ def main():
 
         note = (notes.get(n, {}).get("note") or "").strip()
         people = everyone_at(per_person, pick["t"])
+        # Everyone ELSE in the pool, from a full-frame pass at this one frame.
+        #
+        # Because the
+        # decision runs pose on a 1500x1100 window around the ball, at native
+        # resolution, and anyone outside that window is never seen. That window
+        # is right for DECIDING -- it makes distant swimmers two and a half times
+        # bigger and the shooter is by definition next to the ball -- but it is
+        # wrong for a picture meant to show the whole pool.
+        #
+        # So the picture gets its own pass. These extra people are drawn and
+        # never voted on, which keeps the two jobs apart: the decision still
+        # comes from the high-resolution window, and the image still shows
+        # everybody. One extra inference per shot.
+        people += others_in_frame(fr, people, pos, pool)
         # Two or three, from the shooter's hips against this hoop's boundary.
         three, marg = threept.call(rig, j.get("hoop", "left"), pick.get("kp"))
         points = None if three is None else (3 if three else 2)
