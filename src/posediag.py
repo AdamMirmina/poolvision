@@ -108,6 +108,15 @@ def others_in_frame(fr, known, pos, pool, conf=0.25):
             if (kx1 <= mx <= kx2 and ky1 <= my <= ky2) or (bx1 <= kmx <= bx2 and by1 <= kmy <= by2):
                 dup = True
                 break
+            # Still not enough. The two passes crop a shooter very differently --
+            # one to the raised hand, one to the torso -- so neither center need
+            # fall inside the other box while both plainly describe one person.
+            # Horizontal agreement is the reliable part: two people standing
+            # apart do not share a column.
+            xo = max(0, min(bx2, kx2) - max(bx1, kx1))
+            if xo > 0.55 * min(bx2 - bx1, kx2 - kx1) and oy > 0:
+                dup = True
+                break
         if dup:
             continue
         out.append({"person": f"x{i}", "box": (bx1, by1, bx2, by2),
