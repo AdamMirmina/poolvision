@@ -5,6 +5,17 @@
 # 4.5 GB" proves nothing. A previous session reported a copy as finished on
 # exactly that basis and was wrong. The only reliable signal is the size holding
 # steady across several checks with the file no longer locked for writing.
+#
+# 2026-08-01: size stability is ALSO not enough. A stalled copy -- the phone
+# locking mid-transfer will do it -- leaves the file at full pre-allocated size,
+# not growing, and completely unreadable. It looks finished by every size-based
+# test. An iPhone MOV keeps its index (the moov atom) at the END of the file, so
+# a truncated copy has the bytes but no index, and the only honest check is
+# whether the video actually opens and reports a frame count. That check is now
+# run by verify-footage.py after this script, and nothing downstream starts
+# until it passes.
+#
+# Keep the phone UNLOCKED for the whole transfer. Auto-Lock ends it silently.
 
 # Hardcoded rather than parameterised. A param block didn't bind when the script
 # was launched with -File or dot-sourced from -Command. The REAL cause of the
@@ -12,9 +23,9 @@
 # PowerShell variable names are case-INSENSITIVE, so `$album = $null` silently
 # wiped `$Album`, the name being searched for, and every folder was then compared
 # against null. Renamed so the two can't collide.
-$AlbumName = "202607_a"
+$AlbumName = "202608_a"
 $Dest  = "C:\dev\poolvision\footage"
-$Names = @("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV")
+$Names = @("IMG_2528.MOV", "IMG_2529.MOV")
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
