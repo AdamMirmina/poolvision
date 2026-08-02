@@ -382,21 +382,33 @@ def main():
             continue
 
         note = (notes.get(n, {}).get("note") or "").strip()
-        people = everyone_at(per_person, pick["t"])
-        # Everyone ELSE in the pool, from a full-frame pass at this one frame.
+        # Pose read from THIS frame, not from a cached snapshot at another time.
         #
-        # Because the
-        # decision runs pose on a 1500x1100 window around the ball, at native
-        # resolution, and anyone outside that window is never seen. That window
-        # is right for DECIDING -- it makes distant swimmers two and a half times
-        # bigger and the shooter is by definition next to the ball -- but it is
-        # wrong for a picture meant to show the whole pool.
+        # Because the release is
+        # now walked back to the shooter's hands, the frame drawn can be up to
+        # 0.3s earlier than the nearest pose sample, and in 0.3s an arm coming
+        # down travels most of its own length. The box and the keypoints were
+        # honest readings of a different instant than the pixels underneath them.
         #
-        # So the picture gets its own pass. These extra people are drawn and
-        # never voted on, which keeps the two jobs apart: the decision still
-        # comes from the high-resolution window, and the image still shows
-        # everybody. One extra inference per shot.
-        people += others_in_frame(fr, people, pos, pool)
+        # The scan's samples still decide WHO shot -- they are the high-resolution
+        # look around the ball. They just stop being what gets drawn.
+        people = others_in_frame(fr, [], pos, pool)
+        if pick.get("box"):
+            px1, py1, px2, py2 = pick["box"]
+            best, bi = 0.0, None
+            for i, c in enumerate(people):
+                bx1, by1, bx2, by2 = c["box"]
+                ox = max(0, min(bx2, px2) - max(bx1, px1))
+                oy = max(0, min(by2, py2) - max(by1, py1))
+                small = min((bx2 - bx1) * (by2 - by1), (px2 - px1) * (py2 - py1)) or 1
+                if ox * oy / small > best:
+                    best, bi = ox * oy / small, i
+            if bi is not None and best > 0.2:
+                # The chosen person, now described by this frame's own pose.
+                people[bi] = {**people[bi], "person": pick["person"],
+                              "gap": pick.get("gap"), "lift": pick.get("lift")}
+            elif pick.get("box"):
+                people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
         # One more pass, over the FINAL list. The earlier dedupe only guarded the
         # drawing pass against the decision pass, and review kept seeing a shooter
         # wearing both a green box and a black one -- because the decision pass
