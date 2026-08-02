@@ -183,7 +183,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None, rim=None, rim_tilt=0.0):
+         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None):
     import cv2
 
     dx, dy = off
@@ -223,6 +223,17 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
                 cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
                            AMBER, -1, cv2.LINE_AA)
         ox_, oy_ = arc.at(flight["fit"], t_from)
+        # Snap to the real ball when it is visible in this frame.
+        #
+        # The extrapolated point is where the FITTED curve says the ball was, and
+        # a parabola fitted to the flight is not a perfect description of the
+        # moment it was still being held -- When the detector can see the ball in the frame
+        # being drawn, that is better evidence than the fit, so the marker moves
+        # onto it.
+        if ball_now is not None:
+            bnx, bny = ball_now
+            if ((bnx - ox_) ** 2 + (bny - oy_) ** 2) ** 0.5 < 220:
+                ox_, oy_ = bnx, bny
         ox, oy = int(ox_) - dx, int(oy_) - dy
         r0 = int(13 * S)
         cv2.line(fr, (ox - r0, oy), (ox + r0, oy), AMBER, th, cv2.LINE_AA)
@@ -269,8 +280,6 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             bxk = int(ax + (bx_ - ax) * f_), int(ay + (by_ - ay) * f_)
             txk = bxk[0], int(bxk[1] - (h_near + (h_far - h_near) * f_))
             cv2.line(fr, bxk, txk, LINE3, max(1, th - 2), cv2.LINE_AA)
-        cv2.putText(fr, "3 from behind this", (ax - int(330 * S), ay - int(14 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.72 * S, LINE3, th, cv2.LINE_AA)
 
     # The rim as a tilted ellipse, and the net box under it. Both are the shapes
     # the make rules are measured against, so both get drawn on every frame: a
@@ -405,6 +414,23 @@ def main():
         #
         # The scan's samples still decide WHO shot -- they are the high-resolution
         # look around the ball. They just stop being what gets drawn.
+        # Where the ball actually is in the frame being drawn, for the marker.
+        ball_now = None
+        rb = det.predict(fr, conf=0.10, verbose=False, classes=[shooter.BALL], imgsz=1280)[0]
+        bestd = None
+        for b in rb.boxes:
+            bx1, by1, bx2, by2 = b.xyxy[0].tolist()
+            cxb, cyb = (bx1 + bx2) / 2, (by1 + by2) / 2
+            if not (pool[0] <= cxb <= pool[2] and pool[1] <= cyb <= pool[3]):
+                continue
+            if pick.get("box"):
+                px1, py1, px2, py2 = pick["box"]
+                d0 = ((cxb - (px1 + px2) / 2) ** 2 + (cyb - (py1 + py2) / 2) ** 2) ** 0.5
+            else:
+                d0 = 0
+            if bestd is None or d0 < bestd:
+                bestd, ball_now = d0, (cxb, cyb)
+
         people = others_in_frame(fr, [], pos, pool)
         if pick.get("box"):
             px1, py1, px2, py2 = pick["box"]
@@ -458,13 +484,15 @@ def main():
         rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
         tilt = (rig.tilt or {}).get(hoop, 0.0)
         out = args.out / f"pose-diag-{n}.jpg"
-        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr, rim_tilt=tilt),
+        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr,
+                             rim_tilt=tilt, ball_now=ball_now),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
         line = (rig.three_lines or {}).get(hoop)
         if line:
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
-                             three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt),
+                             three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt,
+                             ball_now=ball_now),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
