@@ -25,32 +25,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import subprocess
-import tempfile
-
-import imageio_ffmpeg
-
 import arc
 import shooter
-
-FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-
-
-def frame_at(video_path, t):
-    """One frame, by timestamp, via ffmpeg rather than an OpenCV seek.
-
-    CAP_PROP_POS_FRAMES on these files is pathological: a single seek into the
-    15GB 4K60 recording ran past ten minutes, and even the 6.7GB one makes a
-    seventeen-shot render take longer than the model pass it is drawing. ffmpeg
-    seeks on the container index instead and returns in a few seconds.
-    """
-    import cv2
-    with tempfile.TemporaryDirectory() as d:
-        out = Path(d) / "f.png"
-        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-ss", f"{t:.3f}",
-                        "-i", str(video_path), "-frames:v", "1", str(out)],
-                       capture_output=True)
-        return cv2.imread(str(out)) if out.exists() else None
+from frames import frame_at
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = Path("C:/dev/poolean/web/public/assets")

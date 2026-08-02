@@ -61,10 +61,16 @@ def person_core(x, y, w, h):
     return x + inset, y + inset, w - 2 * inset, real_h
 
 
-def cap_in_box(frame, box, cv2, np):
-    """The cap on one person, by shape rather than by pixel count."""
+def cap_in_box(frame, box, cv2, np, padded=True):
+    """The cap on one person, by shape rather than by pixel count.
+
+    `padded` says whether the box already carries the 18% padding the older
+    pipeline stored. A raw detector box does not, and insetting it anyway reads
+    the cap off the wrong pixels.
+    """
     x1, y1, x2, y2 = box
-    cx1, cy1, cw, ch = person_core(x1, y1, x2 - x1, y2 - y1)
+    cx1, cy1, cw, ch = (person_core(x1, y1, x2 - x1, y2 - y1) if padded
+                        else (x1, y1, x2 - x1, y2 - y1))
     x1, y1 = int(cx1), int(cy1)
     h = max(2, int(ch))
     x2 = int(cx1 + cw)

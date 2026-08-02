@@ -426,31 +426,52 @@ def main():
     det = YOLO("yolo11s.pt")
     pos = YOLO("yolo11s-pose.pt")
 
+    import numpy as np
+    from frames import frame_at
+    from recap2 import cap_in_box
+
+    video_path = ROOT / "footage" / args.video
     rows = []
     for j in shots:
-        ball_track, per_person = scan(cap, fps, float(j["t"]), det, pos)
-        cands = candidates(per_person)
-        flight = fit_arc(ball_track)
+        ball_track, per_person = scan_cached(args.video, j["n"], float(j["t"]),
+                                             cap, fps, det, pos)
+        pick, how, extra = attribute(ball_track, per_person)
+        flight, cands = extra["flight"], extra["cands"]
 
         base = {"n": j["n"], "clock": j["clock"], "video": args.video,
-                "ball_seen": len(ball_track),
+                "ball_seen": len(ball_track), "people_seen": len(per_person),
+                "hands_up": len(cands),
                 "arc": None if not flight else {
                     "t": round(flight["t"], 2), "x": round(flight["x"], 1),
                     "y": round(flight["y"], 1), "rms": round(flight["rms"], 1),
-                    "sag": flight["sag"], "n": flight["n"]}}
-        if not cands:
-            rows.append({**base, "stage": "no release with hands up"})
-            print(f"  #{j['n']} {j['clock']}: nobody released with hands up "
-                  f"({len(per_person)} people seen, ball on {len(ball_track)} frames)")
+                    "travel": flight.get("travel"), "n": flight["n"]}}
+        if not pick:
+            rows.append({**base, "stage": "no answer", "how": how})
+            print(f"  #{j['n']} {j['clock']}: no answer "
+                  f"({'no flight fitted' if not flight else 'the flight began with nobody near it'})")
             continue
-        pick = cands[0]
-        rows.append({**base, "stage": "attributed",
-                     **{k: pick[k] for k in ("person", "t", "gap", "lift", "grew", "box", "n_seen")},
-                     "others": len(cands) - 1,
-                     "runner_up_gap": cands[1]["gap"] if len(cands) > 1 else None})
-        print(f"  #{j['n']} {j['clock']}: release t={pick['t']}, gap {pick['gap']}, "
-              f"hands {pick['lift']:+.2f}, {len(cands)-1} other candidate(s)"
-              + ("" if not flight else f", arc rms {flight['rms']:.0f}px"))
+
+        # The cap color, read off the chosen person. Kept in a SEPARATE field
+        # from the attribution and never fused with it: a wrong color on a
+        # correct person and a right color on a wrong person look identical
+        # once combined, which is what made a previous round of ground truth
+        # unusable. score_rotation.py scores the two apart for the same reason.
+        hue = None
+        if pick.get("box"):
+            fr = frame_at(video_path, pick["t"])
+            if fr is not None:
+                try:
+                    hue = cap_in_box(fr, pick["box"], cv2, np, padded=False)
+                except Exception:
+                    hue = None
+
+        rows.append({**base, "stage": "attributed", "how": how, "hue": hue,
+                     **{k: pick.get(k) for k in ("person", "t", "gap", "lift", "box")},
+                     "dist": pick.get("dist"), "others": max(0, len(cands) - 1)})
+        print(f"  #{j['n']} {j['clock']}: {how}"
+              + (f", flight starts {pick['dist']:.0f}px away, {flight['travel']:.0f}px traveled"
+                 if how == "arc" else f", release gap {pick['gap']:.2f}")
+              + f", cap {hue if hue is None else round(hue)}")
     cap.release()
 
     out = ROOT / f"out/shooter_{args.video.replace('.MOV','')}.json"
