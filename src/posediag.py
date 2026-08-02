@@ -40,7 +40,7 @@ ASSETS = Path("C:/dev/poolean/web/public/assets")
 # got the channel order backwards -- "cyan = above" was drawn in yellow, and review
 # spent a round of review on a picture whose own key was wrong. Every marker here
 # is labeled with WORDS on the image, not by color alone.
-GREEN = (80, 220, 80)
+GREEN = (40, 150, 30)   # darker, to hold against the water
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 AMBER = (40, 190, 250)
