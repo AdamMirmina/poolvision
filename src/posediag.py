@@ -408,9 +408,16 @@ def main():
     made = []
     for j in shots:
         n = int(j["n"])
+        hoop = j.get("hoop", "left")
         ball_track, per_person = shooter.scan_cached(args.video, n, float(j["t"]),
                                                      cap, fps, det, pos, pool=pool)
-        pick, how, extra = shooter.attribute(ball_track, per_person)
+        # The rig and the hoop, so the facing tiebreak actually runs. Without
+        # them attribute() silently skipped it, which meant the frames review has
+        # been judging were decided by a rule the pipeline no longer uses. Review
+        # asked the right question: "have you implemented the drop zone
+        # heuristic and facing rules in how model is making decisions about the
+        # ones you're asking me to judge."
+        pick, how, extra = shooter.attribute(ball_track, per_person, rig=rig, hoop=hoop)
         flight, cands = extra["flight"], extra["cands"]
         if not pick:
             print(f"  #{n}: no answer ({'no arc fitted' if not flight else 'arc began with nobody near it'}"
@@ -498,7 +505,6 @@ def main():
             people.append({k: pick.get(k) for k in ("person", "box", "kp", "gap", "lift")})
 
         sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
-        hoop = j.get("hoop", "left")
         rr = rig.rims[hoop]
         rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
         tilt = (rig.tilt or {}).get(hoop, 0.0)
