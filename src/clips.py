@@ -57,6 +57,11 @@ def parse_args():
 JITTER_PX = 25      # detector wobble tolerated without calling it a direction change
 MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
+END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
+BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
+
+
+RIG_RIMS: dict = {}
 
 
 def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
@@ -102,9 +107,37 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 else:
                     cur.append(p)
             runs.append(cur)
+
+            # A descent that ENDS somewhere else is not a shot at this hoop.
+            #
+            # Review is
+            # right, and a falling ball is not enough on its own: a pass across
+            # the pool falls too. What makes it a shot is where the fall FINISHES.
+            rim = RIG_RIMS[hoop]
+            rcx, rcy = (rim[0] + rim[2]) / 2, (rim[1] + rim[3]) / 2
+            rw = max(1.0, rim[2] - rim[0])
+            kept = []
             for r in runs:
-                if len(r) >= min_dets and (r[-1]["y"] - r[0]["y"]) >= MIN_DROP_PX:
-                    events.append((hoop, r))
+                if len(r) < min_dets or (r[-1]["y"] - r[0]["y"]) < MIN_DROP_PX:
+                    continue
+                near = min(((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5
+                           for p in r[-3:]) / rw
+                if near > END_NEAR_RIM:
+                    continue
+                kept.append(r)
+
+            # A ball that bounces up off the rim and rolls before dropping is ONE
+            # shot, not two. So consecutive descents at the same hoop, close in time
+            # and both finishing at the rim, are joined rather than counted twice
+            # -- and the clip cut from the joined event runs to the real outcome.
+            merged_runs = []
+            for r in kept:
+                if merged_runs and r[0]["t"] - merged_runs[-1][-1]["t"] <= BOUNCE_GAP_S:
+                    merged_runs[-1] = merged_runs[-1] + r
+                else:
+                    merged_runs.append(r)
+            for r in merged_runs:
+                events.append((hoop, r))
 
     events.sort(key=lambda e: e[1][0]["t"])
 
@@ -166,6 +199,8 @@ def main():
     args = parse_args()
 
     rig = rig_for(args.video)
+    global RIG_RIMS
+    RIG_RIMS = rig.rims
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
     events = cluster(rw["hits"], args.gap, args.min_dets)
     bounds = windows(events)

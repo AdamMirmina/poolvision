@@ -433,6 +433,33 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                 break
         if hit:
             pid, d, t, x, y, _score = hit
+            # Walk the arc BACK to the earliest moment it is still at this
+            # person, and call THAT the release.
+            #
+            # flight["t"] is where the TRACK starts, not where the throw does. If
+            # the detector only picks the ball up once it is clear of the hands,
+            # the frame drawn is well after the ball has gone -- review, on one:
+            # "this frame is long after the shooter released it and the shooter's
+            # hands have gone down." The parabola describes the part before the
+            # first sighting too, so it can be run back until it leaves them.
+            box = None
+            for pid2, b2 in _people_at(per_person, t):
+                if pid2 == pid:
+                    box = b2
+                    break
+            if box:
+                bx1, by1, bx2, by2 = box
+                tt = t
+                for _ in range(int(0.9 * 60)):
+                    cand = tt - 1 / 60.0
+                    cx_, cy_ = arc.at(flight["fit"], cand)
+                    ddx = max(bx1 - cx_, 0, cx_ - bx2)
+                    ddy = max(by1 - cy_, 0, cy_ - by2)
+                    if (ddx * ddx + ddy * ddy) ** 0.5 > REACH_PX:
+                        break
+                    tt = cand
+                if tt < t:
+                    t, (x, y) = tt, arc.at(flight["fit"], tt)
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
             snap = per_person[pid]["at"][snaps[0]] if snaps else {}
             return ({"person": pid, "t": round(t, 2), "dist": round(d, 1),

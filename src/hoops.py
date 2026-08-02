@@ -147,7 +147,9 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 #
 # So it runs the length of the pool instead, from the deck post out past the
 # diving board, and it separates the deep end from the shallow end. Two measured
-# points define it: the post, and where it ends by the board. Both hoops' lines
+# points define it: the post, and where it ends by the board. Anchored at the
+# TOP of the float's box rather than its center, because the white pole is what
+# marks the line and the box center sits down on the blue base. Both hoops' lines
 # take the same direction, since the posts sit a few feet apart and the
 # convergence between them is far below the accuracy this call needs.
 #
@@ -160,8 +162,8 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 _S0729_QUAD = {"near": (954, 1909), "far": (1539, 224), "vp": (3839, 1286)}
 
 _S0729_THREE = {
-    "left": ((2931, 1670), (1644, -355)),
-    "right": ((2665, 1720), (1378, -305)),
+    "left": ((2931, 1562), (1578, -420)),
+    "right": ((2665, 1612), (1312, -370)),
 }
 
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
