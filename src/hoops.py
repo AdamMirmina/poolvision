@@ -148,9 +148,10 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 # So it runs the length of the pool instead, from the deck post out past the
 # diving board, and it separates the deep end from the shallow end. Two measured
 # points define it: the post, and where it ends by the board. Anchored at the
-# WHITE POLE, measured off a 2x zoom of the floats rather than taken from the
-# detection box. The box covers the whole float and its center sits on the blue
-# base, well left of the pole that actually marks the line. Both hoops' lines
+# The BASE of the white pole, where it enters the float. The left one came out of an
+# automatic search cleanly; the right kept latching onto the cord lying at the
+# float's edge, so it is read off a 3x zoom -- measured by eye is still
+# measured, and it is the same route the rim tilt took. Both hoops' lines
 # take the same direction, since the posts sit a few feet apart and the
 # convergence between them is far below the accuracy this call needs.
 #
@@ -163,8 +164,8 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 _S0729_QUAD = {"near": (954, 1909), "far": (1539, 224), "vp": (3839, 1286)}
 
 _S0729_THREE = {
-    "left": ((3015, 1562), (1586, -366)),
-    "right": ((2711, 1612), (1282, -316)),
+    "left": ((2972, 1700), (1665, -313)),
+    "right": ((2713, 1756), (1406, -257)),
 }
 
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):

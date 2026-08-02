@@ -167,6 +167,10 @@ def release(track: list[dict], **kw):
     x, y = at(arc["fit"], first["t"])
     return {
         "t": first["t"], "x": x, "y": y,
+        # The samples the fit was actually made from. Drawing every detection in
+        # the time window instead put dots on the picture that the curve does not
+        # explain, because the window can hold a second ball.
+        "pts": [{"t": p["t"], "x": p["x"], "y": p["y"]} for p in arc["pts"]],
         "fit": arc["fit"], "rms": arc["rms"],
         "sag": round(sag(arc["fit"], first["t"], arc["pts"][-1]["t"]), 1),
         "span": arc["pts"][-1]["t"] - first["t"],

@@ -207,27 +207,33 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # ball in the shooter's hands, which is the thing the picture is claiming.
         t_from = min(flight["t"], t_rel)
         t_to = flight["t"] + flight["span"]
+        fit_draw = flight["fit"]
+        if ball_now is not None and flight.get("pts"):
+            bx0, by0 = ball_now
+            got = arc.fit_xy(flight["pts"] + [{"t": t_rel, "x": bx0, "y": by0}])
+            if got and got[1] < flight["rms"] * 3 + 12:
+                fit_draw = got[0]
         prev = None
-        for _t, x, y in arc.polyline(flight["fit"], t_from, t_to, 48):
+        for _t, x, y in arc.polyline(fit_draw, t_from, t_to, 48):
             p = (int(x) - dx, int(y) - dy)
             if prev:
                 cv2.line(fr, prev, p, AMBER, th, cv2.LINE_AA)
             prev = p
         # The samples the parabola was fitted to, so a fit resting on four
         # points cannot pass for one resting on twenty.
-        for b in ball_track:
+        for b in (flight.get("pts") or ball_track):
             if not (t_from - 0.02 <= b["t"] <= t_to + 0.02):
                 continue
             # Only the sightings the curve actually accounts for. The window can
             # contain a second ball, and drawing every detection in it put dots
             # well off the curve -- A dot that the fit does not pass through is not evidence for
             # this flight, it is evidence of another one.
-            fx, fy = arc.at(flight["fit"], b["t"])
+            fx, fy = arc.at(fit_draw, b["t"])
             if ((fx - b["x"]) ** 2 + (fy - b["y"]) ** 2) ** 0.5 > 46:
                 continue
             cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
                        AMBER, -1, cv2.LINE_AA)
-        ox_, oy_ = arc.at(flight["fit"], t_from)
+        ox_, oy_ = arc.at(fit_draw, t_from)
         # Snap to the real ball when it is visible in this frame.
         #
         # The extrapolated point is where the FITTED curve says the ball was, and
