@@ -50,6 +50,7 @@ AMBER = (40, 190, 250)
 WRIST_UP = (60, 235, 245)     # yellow
 WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
+RIMC = (255, 210, 90)
 
 
 def everyone_at(per_person, t):
@@ -177,7 +178,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None):
+         hoop_center=None, rim=None):
     import cv2
 
     dx, dy = off
@@ -234,6 +235,14 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         cv2.circle(fr, (int(bx_), int(by_)), int(14 * S), LINE3, -1, cv2.LINE_AA)
         cv2.putText(fr, "3 from this side", (int(ax) - int(300 * S), int(ay) - int(20 * S)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, LINE3, th, cv2.LINE_AA)
+
+    # The rim's own ellipse. Drawing it is the first half of that: the test cannot be
+    # trusted until the circle it is measured against is visibly on the rim.
+    if rim is not None:
+        rx1, ry1, rx2, ry2 = rim
+        cv2.ellipse(fr, (int((rx1 + rx2) / 2) - dx, int((ry1 + ry2) / 2) - dy),
+                    (int((rx2 - rx1) / 2), int((ry2 - ry1) / 2)), 0, 0, 360,
+                    RIMC, max(2, th - 1), cv2.LINE_AA)
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -368,16 +377,16 @@ def main():
 
         sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
         hoop = j.get("hoop", "left")
-        out = args.out / f"pose-diag-{n}.jpg"
-        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off),
-                    [cv2.IMWRITE_JPEG_QUALITY, 86])
-        line = (rig.three_lines or {}).get(hoop)
         rr = rig.rims[hoop]
         rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
+        out = args.out / f"pose-diag-{n}.jpg"
+        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr),
+                    [cv2.IMWRITE_JPEG_QUALITY, 86])
+        line = (rig.three_lines or {}).get(hoop)
         if line:
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
-                             three=line, hoop_center=rim_center),
+                             three=line, hoop_center=rim_center, rim=rr),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
