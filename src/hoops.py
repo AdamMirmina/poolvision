@@ -37,10 +37,19 @@ class Rig:
     arrives as 21px, right at the edge of what the detector holds on to. Tight
     crops arrive near native size AND stack into a single inference per frame
     instead of one per hoop.
+
+    `pool` is the part of the frame anything real can happen in. It filters both
+    ball and person detections, and it lived as a hardcoded constant in
+    shooter.py until 2026-08-01, when measuring it against this session's frame
+    showed it excluded the ENTIRE left hoop and the whole bottom-left of the
+    water, where several people stand. That does not fail loudly; it silently
+    drops those detections and reads in the morning as "attribution found
+    nothing." Exactly the failure this module exists to prevent, one file over.
     """
     rims: dict[str, tuple[int, int, int, int]]
     crops: dict[str, tuple[int, int, int, int]]
     dets: dict[str, tuple[int, int, int, int]] | None = None
+    pool: tuple[int, int, int, int] = (1150, 250, 3500, 1750)
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""
@@ -101,6 +110,10 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # 250x180 of padding is about five ball diameters clear of the rim on
         # every side, which is all the detector needs to see a descent through.
         dets={k: _crop_around(v, 250, 180) for k, v in _S0801_RIMS.items()},
+        # Measured off the averaged frame by segmenting the water, then padded
+        # out to take in the left hoop and the heads and arms that rise above
+        # the waterline. Everything left of this is grass and deck.
+        pool=(832, 0, 3840, 2160),
     )
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
     RIGS[_name] = Rig(

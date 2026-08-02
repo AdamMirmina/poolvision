@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import arc
+import hoops
 import shooter
 from frames import frame_at
 
@@ -149,11 +150,13 @@ def main():
     det = YOLO("yolo11s.pt")
     pos = YOLO("yolo11s-pose.pt")
 
+    pool = hoops.rig_for(args.video).pool
     args.out.mkdir(parents=True, exist_ok=True)
     made = []
     for j in shots:
         n = int(j["n"])
-        ball_track, per_person = shooter.scan_cached(args.video, n, float(j["t"]), cap, fps, det, pos)
+        ball_track, per_person = shooter.scan_cached(args.video, n, float(j["t"]),
+                                                     cap, fps, det, pos, pool=pool)
         pick, how, extra = shooter.attribute(ball_track, per_person)
         flight, cands = extra["flight"], extra["cands"]
         if not pick:

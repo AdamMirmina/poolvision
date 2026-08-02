@@ -48,9 +48,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import arc
+import hoops
 
 ROOT = Path(__file__).resolve().parent.parent
-POOL = (1150, 250, 3500, 1750)
 BALL, PERSON = 32, 0
 NOSE, LEYE, REYE, LEAR, REAR, LSH, RSH, LW, RW = 0, 1, 2, 3, 4, 5, 6, 9, 10
 
@@ -100,7 +100,7 @@ def find_release(series):
     return best
 
 
-def scan(cap, fps, t_descent, det, pos, keep=False):
+def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
     """Walk the window before a descent, measuring every person against the ball.
 
     Returns (ball_track, per_person). `ball_track` is [{t,x,y}] and is what the
@@ -134,7 +134,7 @@ def scan(cap, fps, t_descent, det, pos, keep=False):
         for b in rb.boxes:
             x1, y1, x2, y2 = b.xyxy[0].tolist()
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-            if POOL[0] <= cx <= POOL[2] and POOL[1] <= cy <= POOL[3]:
+            if pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]:
                 ball = (cx, cy)
                 break
         if ball is None:
@@ -168,7 +168,7 @@ def scan(cap, fps, t_descent, det, pos, keep=False):
             bx1, by1, bx2, by2 = rp.boxes.xyxy[pi].tolist()
             bx1, by1, bx2, by2 = bx1 + px1, by1 + py1, bx2 + px1, by2 + py1
             cx, cy = (bx1 + bx2) / 2, (by1 + by2) / 2
-            if not (POOL[0] <= cx <= POOL[2] and POOL[1] <= cy <= POOL[3]):
+            if not (pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]):
                 continue
             kp = [[k[0] + px1, k[1] + py1, k[2]] for k in rp.keypoints.data[pi].tolist()]
             ws = [kp[k] for k in (LW, RW) if kp[k][2] > 0.3]
@@ -199,7 +199,7 @@ def scan(cap, fps, t_descent, det, pos, keep=False):
 SCANS = ROOT / "out/scans"
 
 
-def scan_cached(video, n, t_descent, cap, fps, det, pos):
+def scan_cached(video, n, t_descent, cap, fps, det, pos, pool=(1150, 250, 3500, 1750)):
     """scan(), but written to disk the first time and read back after.
 
     The scan is the entire cost: a couple of hundred model calls per shot, tens
@@ -219,7 +219,7 @@ def scan_cached(video, n, t_descent, cap, fps, det, pos):
                         "at": {float(kk): vv for kk, vv in v["at"].items()}}
                for k, v in d["per_person"].items()}
         return d["ball_track"], per
-    ball_track, per_person = scan(cap, fps, t_descent, det, pos)
+    ball_track, per_person = scan(cap, fps, t_descent, det, pos, pool=pool)
     f.write_text(json.dumps({"ball_track": ball_track, "per_person": per_person},
                             default=list), encoding="utf-8")
     return ball_track, per_person
@@ -431,10 +431,14 @@ def main():
     from recap2 import cap_in_box
 
     video_path = ROOT / "footage" / args.video
+    # The scene box comes from the rig, never from a constant. It is what filters
+    # every ball and person detection, and the one that used to be hardcoded here
+    # excluded this session's entire left hoop.
+    pool = hoops.rig_for(args.video).pool
     rows = []
     for j in shots:
         ball_track, per_person = scan_cached(args.video, j["n"], float(j["t"]),
-                                             cap, fps, det, pos)
+                                             cap, fps, det, pos, pool=pool)
         pick, how, extra = attribute(ball_track, per_person)
         flight, cands = extra["flight"], extra["cands"]
 
