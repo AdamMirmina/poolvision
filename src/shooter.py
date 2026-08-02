@@ -333,6 +333,9 @@ def fit_arc(ball_track):
 
 REACH_PX = 110      # how close the arc's origin must come to count as "their hands"
 NEVER_HELD = 4.0    # if the ball never came this close, in shoulder-widths, they did not shoot
+ADMIT_PX = 260      # wider admission, so facing has something to arbitrate
+FACE_TOWARD = 0.20  # decisively facing the hoop
+FACE_AWAY = -0.20   # decisively turned away from it
 NEAR_S = 0.25       # how stale a person's last sighting may be when matched
 
 
@@ -412,12 +415,47 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
         hit = None
         for hands_up_only in (True, False):
             people = _people_at(per_person, flight["t"], hands_up_only)
+
+            # Facing decides WHO IS A CANDIDATE, not just how they rank.
+            #
+            # As a tiebreak it was inert: of 21 arc-attributed shots only one had
+            # more than one candidate within reach of the origin, so there was
+            # almost never a tie to break.
+            #
+            # So admission widens, and facing prunes the clearly-turned-away.
+            # Deliberately soft, on his caveat that a "shooter could theoretically
+            # shoot backwards": it only prunes when someone else is clearly facing
+            # the hoop, it needs a decisive reading on both sides rather than a
+            # marginal one, and it never empties the candidate set.
+            near = []
             for pid, box in people:
                 x1, y1, x2, y2 = box
                 dx = max(x1 - flight["x"], 0, flight["x"] - x2)
                 dy = max(y1 - flight["y"], 0, flight["y"] - y2)
                 d = (dx * dx + dy * dy) ** 0.5
-                if d > REACH_PX:
+                if d <= ADMIT_PX:
+                    near.append((pid, box, d))
+            if len(near) > 1 and rig is not None and hoop:
+                r = rig.rims[hoop]
+                tgt = ((r[0] + r[2]) / 2, (r[1] + r[3]) / 2)
+                scored = []
+                for pid, box, d in near:
+                    snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - flight["t"]))
+                    kp = per_person[pid]["at"][snaps[0]].get("kp") if snaps else None
+                    fv = facing.toward(kp, tgt, facing.body_center(kp, box)) if kp else None
+                    if fv is not None:
+                        fv *= facing.orientation(rig, hoop)
+                    scored.append((pid, box, d, fv))
+                toward = [z for z in scored if z[3] is not None and z[3] > FACE_TOWARD]
+                away = {z[0] for z in scored if z[3] is not None and z[3] < FACE_AWAY}
+                if toward and away:
+                    kept = [z[:3] for z in scored if z[0] not in away]
+                    if kept:
+                        near = kept
+            for pid, box, d in near:
+                if d > REACH_PX and len(near) > 1:
+                    continue          # the wider radius is only for the pruning above
+                if d > ADMIT_PX:
                     continue
                 # Facing the hoop breaks ties, where it can be trusted. the heuristic: two people with a hand up, both beside the ball, and
                 # the one turned toward the basket the shot went to is the
