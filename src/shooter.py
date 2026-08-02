@@ -332,6 +332,7 @@ def fit_arc(ball_track):
 
 
 REACH_PX = 110      # how close the arc's origin must come to count as "their hands"
+NEVER_HELD = 4.0    # if the ball never came this close, in shoulder-widths, they did not shoot
 NEAR_S = 0.25       # how stale a person's last sighting may be when matched
 
 
@@ -358,6 +359,19 @@ def _people_at(per_person, t, hands_up_only=False):
         if dt > NEAR_S or not s.get("box"):
             continue
         if hands_up_only and not (s.get("lift") or 0) > 0:
+            continue
+        # The ball has to have come near them at some point in the window.
+        #
+        #
+        # The person chosen there had the ball come no closer than 5 shoulder-
+        # widths all window, while three others got inside one. They were picked
+        # only because they happened to stand nearest where the arc began, and
+        # standing near where a flight started is not the same as throwing it.
+        #
+        # Filtered here rather than vetoed after the choice, so the next-best
+        # candidate still gets considered instead of the shot going unanswered.
+        near = min((g for _t2, g, _l in v["series"]), default=99)
+        if near > NEVER_HELD:
             continue
         out.append((key, s["box"]))
     return out
