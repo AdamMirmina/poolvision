@@ -196,7 +196,14 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # in a few steps, so almost all of the drawn curve is clipped away and
         # what survives is a stub that looks like a bug. The honest curve is the
         # stretch the fit was actually made over.
-        t_from = flight["t"]
+        # Start the curve at the RELEASE, not at the first sighting.
+        #
+        # It should. flight["t"] is where the detector
+        # first caught the ball, which is above and after the hands; the release
+        # is where the parabola is now walked back to, and the frame being drawn
+        # is that moment. Extending the curve back to it puts its start on the
+        # ball in the shooter's hands, which is the thing the picture is claiming.
+        t_from = min(flight["t"], t_rel)
         t_to = flight["t"] + flight["span"]
         prev = None
         for _t, x, y in arc.polyline(flight["fit"], t_from, t_to, 48):
@@ -210,7 +217,8 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             if t_from - 0.02 <= b["t"] <= t_to + 0.02:
                 cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
                            AMBER, -1, cv2.LINE_AA)
-        ox, oy = int(flight["x"]) - dx, int(flight["y"]) - dy
+        ox_, oy_ = arc.at(flight["fit"], t_from)
+        ox, oy = int(ox_) - dx, int(oy_) - dy
         r0 = int(13 * S)
         cv2.line(fr, (ox - r0, oy), (ox + r0, oy), AMBER, th, cv2.LINE_AA)
         cv2.line(fr, (ox, oy - r0), (ox, oy + r0), AMBER, th, cv2.LINE_AA)

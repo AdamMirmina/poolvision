@@ -448,18 +448,39 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                     box = b2
                     break
             if box:
+                # Stop at the HANDS, not at the edge of the box.
+                #
+                # Walking back until the curve leaves the box overshoots: the box
+                # is a person-sized target and the curve keeps going for another
+                # hundred pixels past the hands before it exits. review saw the
+                # result -- "should that star be on the ball at the point of
+                # release?" -- with the marker sitting beside the shooter rather
+                # than on the ball he was holding. The release is where the ball
+                # was, so the walk-back ends at the closest approach to the
+                # wrists, and to the box only when no wrist was read.
+                snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
+                snap = per_person[pid]["at"][snaps[0]] if snaps else {}
+                kp = snap.get("kp")
+                hands = [(kp[k][0], kp[k][1]) for k in (LW, RW)
+                         if kp and kp[k][2] > 0.3] if kp else []
                 bx1, by1, bx2, by2 = box
+                best_t, best_d = t, None
                 tt = t
                 for _ in range(int(0.9 * 60)):
-                    cand = tt - 1 / 60.0
-                    cx_, cy_ = arc.at(flight["fit"], cand)
-                    ddx = max(bx1 - cx_, 0, cx_ - bx2)
-                    ddy = max(by1 - cy_, 0, cy_ - by2)
-                    if (ddx * ddx + ddy * ddy) ** 0.5 > REACH_PX:
-                        break
-                    tt = cand
-                if tt < t:
-                    t, (x, y) = tt, arc.at(flight["fit"], tt)
+                    tt -= 1 / 60.0
+                    cx_, cy_ = arc.at(flight["fit"], tt)
+                    if hands:
+                        d2 = min(((cx_ - hx) ** 2 + (cy_ - hy) ** 2) ** 0.5 for hx, hy in hands)
+                    else:
+                        ddx = max(bx1 - cx_, 0, cx_ - bx2)
+                        ddy = max(by1 - cy_, 0, cy_ - by2)
+                        d2 = (ddx * ddx + ddy * ddy) ** 0.5
+                    if best_d is None or d2 < best_d:
+                        best_d, best_t = d2, tt
+                    elif d2 > best_d + REACH_PX:
+                        break          # past them and moving away; stop
+                if best_t < t and best_d is not None and best_d <= REACH_PX * 1.6:
+                    t, (x, y) = best_t, arc.at(flight["fit"], best_t)
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
             snap = per_person[pid]["at"][snaps[0]] if snaps else {}
             return ({"person": pid, "t": round(t, 2), "dist": round(d, 1),
