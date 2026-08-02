@@ -60,6 +60,17 @@ class Rig:
     # The water's corners, used to shade the three-point AREA instead of drawing
     # a bare line across the picture.
     quad: dict[str, tuple[int, int]] | None = None
+    # How far each rim's ellipse is tilted, in degrees, clockwise from flat.
+    #
+    # Not fitted. Fitting the tilt from the red mask produced nonsense on both
+    # sessions -- 168x180 at 56 degrees for a rim that is plainly wide and flat --
+    # for the same reason the left rim never fitted an ellipse in the first
+    # place: the mask catches a partial arc and cv2.fitEllipse extrapolates
+    # wildly from one. review gave the correction directly instead: "left ellipse
+    # needs to have its right side up a little and right needs its left side up
+    # a little." Image y grows downward, so raising the right side is a negative
+    # angle.
+    tilt: dict[str, float] | None = None
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""
@@ -124,6 +135,7 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # out to take in the left hoop and the heads and arms that rise above
         # the waterline. Everything left of this is grass and deck.
         pool=(832, 0, 3840, 2160),
+        tilt={"left": -9.0, "right": 9.0},
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
@@ -160,6 +172,7 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         # the whole pool and everyone in it, not a crop around the action.
         pool=(700, 100, 3840, 2010),
         three_lines=_S0729_THREE,
+        tilt={"left": -9.0, "right": 9.0},
         quad=_S0729_QUAD,
     )
 

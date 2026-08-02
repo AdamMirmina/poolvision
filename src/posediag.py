@@ -50,7 +50,7 @@ AMBER = (40, 190, 250)
 WRIST_UP = (60, 235, 245)     # yellow
 WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
-RIMC = (255, 210, 90)
+RIMC = (60, 235, 245)      # yellow, on the ask
 
 
 def everyone_at(per_person, t):
@@ -178,7 +178,7 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None, rim=None):
+         hoop_center=None, rim=None, rim_tilt=0.0):
     import cv2
 
     dx, dy = off
@@ -241,8 +241,13 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
     if rim is not None:
         rx1, ry1, rx2, ry2 = rim
         cv2.ellipse(fr, (int((rx1 + rx2) / 2) - dx, int((ry1 + ry2) / 2) - dy),
-                    (int((rx2 - rx1) / 2), int((ry2 - ry1) / 2)), 0, 0, 360,
+                    (int((rx2 - rx1) / 2), int((ry2 - ry1) / 2)), rim_tilt, 0, 360,
                     RIMC, max(2, th - 1), cv2.LINE_AA)
+        # The net box, which is where the shimmer is measured. Drawn for the same
+        # reason as the ellipse: the rule is only as good as the box it reads.
+        nb = (int(rx1) - dx, int(ry2) - dy, int(rx2) - dx,
+              int(ry2 + (ry2 - ry1) * 1.5) - dy)
+        cv2.rectangle(fr, (nb[0], nb[1]), (nb[2], nb[3]), RIMC, max(2, th - 2))
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -379,14 +384,15 @@ def main():
         hoop = j.get("hoop", "left")
         rr = rig.rims[hoop]
         rim_center = ((rr[0] + rr[2]) / 2, (rr[1] + rr[3]) / 2)
+        tilt = (rig.tilt or {}).get(hoop, 0.0)
         out = args.out / f"pose-diag-{n}.jpg"
-        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr),
+        cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr, rim_tilt=tilt),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
         line = (rig.three_lines or {}).get(hoop)
         if line:
             cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
-                             three=line, hoop_center=rim_center, rim=rr),
+                             three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
@@ -399,6 +405,10 @@ def main():
             "pMake": pmake.get(str(n)),
             "points": points, "threeMargin": None if marg is None else round(marg, 2),
             "hoop": j.get("hoop", "left"),
+            "rim": [round(v) for v in rr], "tilt": tilt,
+            "net": [round(rr[0]), round(rr[3]), round(rr[2]),
+                    round(rr[3] + (rr[3] - rr[1]) * 1.5)],
+            "wide": list(rig.pool),
             "has3pt": bool((rig.three_lines or {}).get(j.get("hoop", "left")) and rig.quad),
         })
         print(f"  #{n}: {how}, {len(people)} people boxed, "
