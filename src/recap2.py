@@ -28,7 +28,21 @@ ROOT = Path(__file__).resolve().parent.parent
 # 10 (20 degrees) still clears the water while leaving blue readable. The shape
 # test is what actually protects against the water anyway: the pool is not a
 # compact round blob sitting high in a head box.
-WATER_CV, WATER_MARGIN, MIN_SAT = 96, 10, 105
+# MIN_SAT was 105 and that made the pink cap structurally unreadable: measured
+# on two shots of it, its saturation tops out at 87 and ZERO pixels cleared 105.
+# Pink came back as "no cap" on every shot one player took, which is why the 2026-08-01
+# rotation test scored him 0 of 6 and returned 38% against a 33% coin flip.
+#
+# Worse, the threshold was not doing the job it looked like it was doing. It
+# reads as "saturated enough not to be water", but the water here sits at
+# saturation 143, well ABOVE the cap it was excluding. Water is kept out by the
+# hue-distance test below, which is the test that actually knows about water.
+# 105 was only ever excluding pale caps.
+#
+# 60 admits the pink cap with room to spare and still sits above the pale deck.
+# Skin is the real hazard at this level and is excluded by hue instead: the
+# color band starts at 32 degrees and skin lands at 0-30.
+WATER_CV, WATER_MARGIN, MIN_SAT = 96, 10, 60
 CAP_MIN_PX, CAP_MAX_PX = 60, 9000
 
 

@@ -324,16 +324,31 @@ REACH_PX = 110      # how close the arc's origin must come to count as "their ha
 NEAR_S = 0.25       # how stale a person's last sighting may be when matched
 
 
-def _people_at(per_person, t):
-    """[(id, box)] for everyone seen within NEAR_S of t."""
+def _people_at(per_person, t, hands_up_only=False):
+    """[(id, box)] for everyone seen within NEAR_S of t.
+
+    `hands_up_only` keeps the first rule in force. It was silently dropped
+    when attribution moved to the ball's flight: the origin was matched against
+    whoever was nearest it, hands or no hands, and he caught the result straight
+    away -- "in LOTS of the images you're showing to me, it's not iding the right
+    person even when they're the only one with hands up."
+
+    The reasoning is what makes the filter safe, and it did not stop being true
+    when the evidence changed. A shooter always has their hands up; a bystander
+    the flight happens to start near often does not. The test can never exclude
+    the real shooter, only people who certainly did not shoot.
+    """
     out = []
     for key, v in per_person.items():
         snaps = [(abs(float(tt) - t), v["at"][tt]) for tt in v["at"]]
         if not snaps:
             continue
         dt, s = min(snaps, key=lambda z: z[0])
-        if dt <= NEAR_S and s.get("box"):
-            out.append((key, s["box"]))
+        if dt > NEAR_S or not s.get("box"):
+            continue
+        if hands_up_only and not (s.get("lift") or 0) > 0:
+            continue
+        out.append((key, s["box"]))
     return out
 
 
@@ -364,24 +379,31 @@ def attribute(ball_track, per_person):
     flight = fit_arc(ball_track)
 
     if flight:
-        # The origin as fitted, then walking backwards if it began in open water
-        # -- the track can start mid-flight, and then the arc's first point has
-        # nobody near it by construction.
+        # Hands up first, everyone only if nobody had them up. Two passes rather
+        # than one, because the filter is a necessary condition and not a
+        # preference: if anyone in reach of the throw had their hands up, the
+        # shooter is among them and a bystander closer to the origin is not a
+        # candidate at all.
         hit = None
-        for pid, box in _people_at(per_person, flight["t"]):
-            x1, y1, x2, y2 = box
-            dx = max(x1 - flight["x"], 0, flight["x"] - x2)
-            dy = max(y1 - flight["y"], 0, flight["y"] - y2)
-            d = (dx * dx + dy * dy) ** 0.5
-            if d <= REACH_PX and (hit is None or d < hit[1]):
-                hit = (pid, d, flight["t"], flight["x"], flight["y"])
-        if hit is None:
-            walked = arc.origin_at_person(
-                flight["fit"], flight["t"],
-                lambda t: _people_at(per_person, t),
-                back_s=1.2, reach_px=REACH_PX)
-            if walked:
-                hit = (walked["person"], walked["dist"], walked["t"], walked["x"], walked["y"])
+        for hands_up_only in (True, False):
+            people = _people_at(per_person, flight["t"], hands_up_only)
+            for pid, box in people:
+                x1, y1, x2, y2 = box
+                dx = max(x1 - flight["x"], 0, flight["x"] - x2)
+                dy = max(y1 - flight["y"], 0, flight["y"] - y2)
+                d = (dx * dx + dy * dy) ** 0.5
+                if d <= REACH_PX and (hit is None or d < hit[1]):
+                    hit = (pid, d, flight["t"], flight["x"], flight["y"])
+            if hit is None:
+                walked = arc.origin_at_person(
+                    flight["fit"], flight["t"],
+                    lambda t, hu=hands_up_only: _people_at(per_person, t, hu),
+                    back_s=1.2, reach_px=REACH_PX)
+                if walked:
+                    hit = (walked["person"], walked["dist"], walked["t"],
+                           walked["x"], walked["y"])
+            if hit:
+                break
         if hit:
             pid, d, t, x, y = hit
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
