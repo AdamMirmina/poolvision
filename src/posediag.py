@@ -114,15 +114,12 @@ def others_in_frame(fr, known, pos, pool, conf=0.25):
             if (kx1 <= mx <= kx2 and ky1 <= my <= ky2) or (bx1 <= kmx <= bx2 and by1 <= kmy <= by2):
                 dup = True
                 break
-            # Still not enough. The two passes crop a shooter very differently --
-            # one to the raised hand, one to the torso -- so neither center need
-            # fall inside the other box while both plainly describe one person.
-            # Horizontal agreement is the reliable part: two people standing
-            # apart do not share a column.
-            xo = max(0, min(bx2, kx2) - max(bx1, kx1))
-            if xo > 0.55 * min(bx2 - bx1, kx2 - kx1) and oy > 0:
-                dup = True
-                break
+            # A horizontal-overlap rule used to live here, from when two passes
+            # had to be reconciled. It is gone: with one pose pass the only
+            # duplicates are within-pass, which the checks above catch, and the
+            # blunt version ate real people -- two swimmers standing one behind
+            # the other share almost all of their column, and review found one
+            # missing its box entirely because of it.
         if dup:
             continue
         out.append({"person": f"x{i}", "box": (bx1, by1, bx2, by2),
@@ -219,9 +216,17 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # The samples the parabola was fitted to, so a fit resting on four
         # points cannot pass for one resting on twenty.
         for b in ball_track:
-            if t_from - 0.02 <= b["t"] <= t_to + 0.02:
-                cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
-                           AMBER, -1, cv2.LINE_AA)
+            if not (t_from - 0.02 <= b["t"] <= t_to + 0.02):
+                continue
+            # Only the sightings the curve actually accounts for. The window can
+            # contain a second ball, and drawing every detection in it put dots
+            # well off the curve -- A dot that the fit does not pass through is not evidence for
+            # this flight, it is evidence of another one.
+            fx, fy = arc.at(flight["fit"], b["t"])
+            if ((fx - b["x"]) ** 2 + (fy - b["y"]) ** 2) ** 0.5 > 46:
+                continue
+            cv2.circle(fr, (int(b["x"]) - dx, int(b["y"]) - dy), max(4, int(5 * S)),
+                       AMBER, -1, cv2.LINE_AA)
         ox_, oy_ = arc.at(flight["fit"], t_from)
         # Snap to the real ball when it is visible in this frame.
         #
