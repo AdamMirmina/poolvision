@@ -52,12 +52,32 @@ _S0729_RIMS = {
     "right": (3405, 640, 3577, 707),
 }
 
+# 2026-08-01 session (IMG_2528 shootout, IMG_2529 game). Camera moved again: the
+# whole scene is framed from further round the corner.
+#
+# Measured off an averaged frame -- several frames blended so swimmers and
+# splashes average away and only the fixed furniture remains -- then drawn and
+# checked by eye THREE times. The first estimate clipped the right and bottom of
+# both rims; the second still cut off the top, which review caught: seen from above
+# a rim is an ellipse whose FAR edge sits highest in frame, and it is easy to
+# place the top against the near edge instead. Worth the three passes. A wrong
+# box costs an overnight run and reads as a detector failure in the morning.
+_S0801_RIMS = {
+    "left": (850, 1018, 1040, 1132),
+    "right": (3378, 650, 3582, 758),
+}
+
 RIGS: dict[str, Rig] = {
     "IMG_2403.MOV": Rig(
         rims=_S0727_RIMS,
         crops={"left": (188, 453, 1248, 1293), "right": (2860, 178, 3840, 1038)},
     ),
 }
+for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
+    RIGS[_name] = Rig(
+        rims=_S0801_RIMS,
+        crops={k: _crop_around(v, 430, 400) for k, v in _S0801_RIMS.items()},
+    )
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
     RIGS[_name] = Rig(
         rims=_S0729_RIMS,
