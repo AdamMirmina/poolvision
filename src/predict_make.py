@@ -82,7 +82,33 @@ def main():
     XS = np.array([[f.get(n, 0.0) for n in names] for f in sf], dtype=float)
     p = model.predict_proba(XS)[:, 1]
 
-    out = {str(j["n"]): round(float(pi), 3) for j, pi in zip(sk, p)}
+    # the veto, enforced: a net that does not move cannot be a make.
+    #
+    # One-sided on purpose. A moving net proves nothing, because a ball off the
+    # iron shakes it exactly as hard and off-the-iron is the commonest miss on
+    # this footage. A STILL net is the informative half, and measured on 119
+    # judged shots it is: makes run at a shimmer ratio of 6.88 against 4.08 for
+    # misses, and vetoing below 0.85 kills 11 misses at the cost of 2 makes.
+    #
+    # Applied as a ceiling on the probability rather than a hard zero, so the
+    # model's own evidence still orders the shots it vetoes and a wrong veto
+    # degrades a call rather than inverting it.
+    import hoops as _h
+    import netgate
+    rig = _h.rig_for(args.video)
+    video = ROOT / "footage" / args.video
+    out = {}
+    vetoed = 0
+    for j, pi in zip(sk, p):
+        pi = float(pi)
+        if pi >= 0.5 and video.exists():
+            sh = netgate.shimmer(video, rig, j.get("hoop", "left"), float(j["t"]))
+            if sh and sh.get("ratio") is not None and sh["ratio"] < netgate.STILL:
+                pi = min(pi, 0.35)
+                vetoed += 1
+        out[str(j["n"])] = round(pi, 3)
+    if vetoed:
+        print(f"  net veto pulled {vetoed} calls back from make")
     dest = ROOT / f"out/pmake_{args.video.replace('.MOV','')}.json"
     dest.write_text(json.dumps(out, indent=1), encoding="utf-8")
     print(f"scored {len(out)} of {len(shots)} shots -> {dest.name}")

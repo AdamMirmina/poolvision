@@ -39,8 +39,22 @@ ROOT = Path(__file__).resolve().parent.parent
 # bottom edge down by about one and a half rim heights, which is where the net
 # is in every frame checked by eye.
 NET_DROP = 1.5
-AFTER_S = 0.9        # how long after the ball arrives to watch
-BEFORE_S = 0.7       # quiet window before it, for the resting baseline
+# Swept rather than guessed. The labeled time is the DESCENT, so a baseline
+# taken just before it already contains the ball approaching, and a short watch
+# ends before a late-struck net settles. Both matter more than the threshold:
+#
+#   baseline -2.5s, watch 0.9s -> veto 83% correct (74% by chance)
+#   baseline -2.5s, watch 1.6s -> 89%
+#   baseline -3.5s, watch 1.6s -> 92%
+AFTER_S = 1.6        # how long after the ball arrives to watch
+BEFORE_S = 0.7       # length of the quiet window
+BEFORE_BACK = 3.5    # how far back to take it, clear of the ball's approach
+
+# Below this the net did not move, and a still net cannot be a make. Chosen off
+# the sweep for cost: at 0.85 it vetoes 11 misses for 2 real makes, where 1.4
+# would take 16 misses but cost 6 makes. The veto has to be nearly free to be
+# worth applying to a model already at 82%.
+STILL = 0.85
 
 
 def net_box(rig, hoop):
@@ -85,7 +99,7 @@ def shimmer(video, rig, hoop, t_arrive):
     """
     import numpy as np
     box = net_box(rig, hoop)
-    before = _grab(video, t_arrive - BEFORE_S - 0.1, BEFORE_S, box)
+    before = _grab(video, t_arrive - BEFORE_BACK - BEFORE_S, BEFORE_S, box)
     after = _grab(video, t_arrive - 0.15, AFTER_S, box)
     if not before or not after:
         return None
@@ -138,7 +152,7 @@ def main():
         print(f"  makes  median ratio {st.median(mk):.2f}")
         print(f"  misses median ratio {st.median(ms):.2f}")
         print("\nEnforcing the one-sided rule -- a still net vetoes a make:")
-        for thr in (1.0, 1.15, 1.3, 1.5, 1.8, 2.2):
+        for thr in (0.6, 0.85, 1.1, 1.4, 1.8, 2.4):
             vetoed_makes = sum(1 for v in mk if v < thr)
             vetoed_misses = sum(1 for v in ms if v < thr)
             if vetoed_makes + vetoed_misses == 0:

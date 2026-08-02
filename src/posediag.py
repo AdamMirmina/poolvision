@@ -215,39 +215,62 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         cv2.line(fr, (ox - r0, oy), (ox + r0, oy), AMBER, th, cv2.LINE_AA)
         cv2.line(fr, (ox, oy - r0), (ox, oy + r0), AMBER, th, cv2.LINE_AA)
 
-    # ONE boundary, for the hoop this shot went to, shaded on the side away from
-    # that hoop. The side test runs per pixel rather than by building a polygon:
-    # the line crosses the frame at an arbitrary angle and clipping a half-plane
-    # to a rectangle by hand is where the off-by-one bugs live.
-    if three and hoop_center is not None:
+    # The boundary as a WALL standing on the pool, not a wash of color over
+    # half the picture. with "walls and
+    # ceiling to that vertical wall."
+    #
+    # A real vertical wall photographed from above projects as a band above its
+    # base line, taller at the near end than the far one, because the near end is
+    # closer to the camera. The base runs from the deck post (near) out past the
+    # diving board (far), so the height tapers along it. That taper is what makes
+    # it read as standing up out of the water rather than lying flat on it.
+    if three:
         (lx1, ly1), (lx2, ly2) = three
-        ax, ay = lx1 - dx, ly1 - dy
-        bx_, by_ = lx2 - dx, ly2 - dy
-        yy, xx = np.mgrid[0:fr.shape[0], 0:fr.shape[1]]
-        side = (bx_ - ax) * (yy - ay) - (by_ - ay) * (xx - ax)
-        hx, hy_ = hoop_center[0] - dx, hoop_center[1] - dy
-        hside = (bx_ - ax) * (hy_ - ay) - (by_ - ay) * (hx - ax)
-        far = (side > 0) if hside < 0 else (side < 0)
-        shade = fr.copy()
-        shade[far] = LINE3
-        cv2.addWeighted(shade, 0.20, fr, 0.80, 0, fr)
-        cv2.line(fr, (int(ax), int(ay)), (int(bx_), int(by_)), LINE3, th + 1, cv2.LINE_AA)
-        cv2.circle(fr, (int(bx_), int(by_)), int(14 * S), LINE3, -1, cv2.LINE_AA)
-        cv2.putText(fr, "3 from this side", (int(ax) - int(300 * S), int(ay) - int(20 * S)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7 * S, LINE3, th, cv2.LINE_AA)
+        ax, ay = int(lx1) - dx, int(ly1) - dy
+        bx_, by_ = int(lx2) - dx, int(ly2) - dy
+        # The far end of the line is an extrapolation well past the diving board
+        # and lands off the top of the frame, so the wall built on it ran off
+        # screen and read as a slanted band rather than a wall. Clipped to the
+        # picture, leaving headroom for the wall's own height.
+        ok_, pa, pb = cv2.clipLine((0, int(160 * S), fr.shape[1], fr.shape[0]),
+                                   (ax, ay), (bx_, by_))
+        if ok_:
+            (ax, ay), (bx_, by_) = pa, pb
+        h_near, h_far = int(300 * S), int(96 * S)
+        top_a = (ax, ay - h_near)
+        top_b = (bx_, by_ - h_far)
+        poly = np.array([[ax, ay], [bx_, by_], top_b, top_a], np.int32)
+        face = fr.copy()
+        cv2.fillPoly(face, [poly], LINE3)
+        cv2.addWeighted(face, 0.26, fr, 0.74, 0, fr)
+        # The edges are what sell it: base on the water, two uprights, and the
+        # top edge that is the "ceiling" of the wall.
+        cv2.line(fr, (ax, ay), (bx_, by_), LINE3, th + 1, cv2.LINE_AA)          # base
+        cv2.line(fr, top_a, top_b, LINE3, th + 1, cv2.LINE_AA)                  # top
+        cv2.line(fr, (ax, ay), top_a, LINE3, th + 1, cv2.LINE_AA)               # near upright
+        cv2.line(fr, (bx_, by_), top_b, LINE3, th, cv2.LINE_AA)                 # far upright
+        # A few verticals across it, so the surface reads as a plane rather than
+        # an outlined shape.
+        for k in range(1, 6):
+            f_ = k / 6.0
+            bxk = int(ax + (bx_ - ax) * f_), int(ay + (by_ - ay) * f_)
+            txk = bxk[0], int(bxk[1] - (h_near + (h_far - h_near) * f_))
+            cv2.line(fr, bxk, txk, LINE3, max(1, th - 2), cv2.LINE_AA)
+        cv2.putText(fr, "3 from behind this", (ax - int(330 * S), ay - int(14 * S)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.72 * S, LINE3, th, cv2.LINE_AA)
 
-    # The rim's own ellipse. Drawing it is the first half of that: the test cannot be
-    # trusted until the circle it is measured against is visibly on the rim.
+    # The rim as a tilted ellipse, and the net box under it. Both are the shapes
+    # the make rules are measured against, so both get drawn on every frame: a
+    # rule is only as trustworthy as the box it reads, and drawing them is how
+    # that gets checked by eye instead of assumed.
     if rim is not None:
         rx1, ry1, rx2, ry2 = rim
         cv2.ellipse(fr, (int((rx1 + rx2) / 2) - dx, int((ry1 + ry2) / 2) - dy),
                     (int((rx2 - rx1) / 2), int((ry2 - ry1) / 2)), rim_tilt, 0, 360,
                     RIMC, max(2, th - 1), cv2.LINE_AA)
-        # The net box, which is where the shimmer is measured. Drawn for the same
-        # reason as the ellipse: the rule is only as good as the box it reads.
-        nb = (int(rx1) - dx, int(ry2) - dy, int(rx2) - dx,
-              int(ry2 + (ry2 - ry1) * 1.5) - dy)
-        cv2.rectangle(fr, (nb[0], nb[1]), (nb[2], nb[3]), RIMC, max(2, th - 2))
+        cv2.rectangle(fr, (int(rx1) - dx, int(ry2) - dy),
+                      (int(rx2) - dx, int(ry2 + (ry2 - ry1) * 1.5) - dy),
+                      RIMC, max(2, th - 2))
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
@@ -374,6 +397,30 @@ def main():
         # comes from the high-resolution window, and the image still shows
         # everybody. One extra inference per shot.
         people += others_in_frame(fr, people, pos, pool)
+        # One more pass, over the FINAL list. The earlier dedupe only guarded the
+        # drawing pass against the decision pass, and review kept seeing a shooter
+        # wearing both a green box and a black one -- because the decision pass
+        # itself sometimes tracks one person as two, so both boxes come from the
+        # same place and neither is "extra". Anything that heavily overlaps the
+        # chosen person is the chosen person.
+        if pick.get("box"):
+            px1, py1, px2, py2 = pick["box"]
+            keep = []
+            for c in people:
+                if c["person"] == pick["person"]:
+                    keep.append(c)
+                    continue
+                bx1, by1, bx2, by2 = c["box"]
+                ox = max(0, min(bx2, px2) - max(bx1, px1))
+                oy = max(0, min(by2, py2) - max(by1, py1))
+                inter = ox * oy
+                small = min((bx2 - bx1) * (by2 - by1), (px2 - px1) * (py2 - py1))
+                if small > 0 and inter / small > 0.35:
+                    continue
+                if ox > 0.5 * min(bx2 - bx1, px2 - px1) and oy > 0.25 * min(by2 - by1, py2 - py1):
+                    continue
+                keep.append(c)
+            people = keep
         # Two or three, from the shooter's hips against this hoop's boundary.
         three, marg = threept.call(rig, j.get("hoop", "left"), pick.get("kp"))
         points = None if three is None else (3 if three else 2)
