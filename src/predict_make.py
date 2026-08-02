@@ -93,19 +93,34 @@ def main():
     # Applied as a ceiling on the probability rather than a hard zero, so the
     # model's own evidence still orders the shots it vetoes and a wrong veto
     # degrades a call rather than inverting it.
+    import dropzone
     import hoops as _h
     import netgate
     rig = _h.rig_for(args.video)
     video = ROOT / "footage" / args.video
+    rw_hits = {}
+    rwp = ROOT / f"out/rimwatch_{args.video.replace('.MOV','')}.json"
+    if rwp.exists():
+        rw_hits[args.video] = json.loads(rwp.read_text(encoding="utf-8"))["hits"]
     out = {}
     vetoed = 0
     for j, pi in zip(sk, p):
         pi = float(pi)
-        if pi >= 0.5 and video.exists():
-            sh = netgate.shimmer(video, rig, j.get("hoop", "left"), float(j["t"]))
-            if sh and sh.get("ratio") is not None and sh["ratio"] < netgate.STILL:
-                pi = min(pi, 0.35)
+        if pi >= 0.5:
+            hoop = j.get("hoop", "left")
+            # The stronger of the two vetoes, and the cheaper: a ball that never
+            # appeared in the column under the net did not go through it. Right
+            # 51 times out of 54 on the judged shots, and it fires on 45% of
+            # them, against the net shimmer's 11-for-2 on a much smaller slice.
+            hits = rw_hits.get(j["video"], {}).get(hoop, [])
+            if hits and not dropzone.dropped(hits, rig.rims[hoop], float(j["t"])):
+                pi = min(pi, 0.25)
                 vetoed += 1
+            elif video.exists():
+                sh = netgate.shimmer(video, rig, hoop, float(j["t"]))
+                if sh and sh.get("ratio") is not None and sh["ratio"] < netgate.STILL:
+                    pi = min(pi, 0.35)
+                    vetoed += 1
         out[str(j["n"])] = round(pi, 3)
     if vetoed:
         print(f"  net veto pulled {vetoed} calls back from make")

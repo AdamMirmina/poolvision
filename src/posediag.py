@@ -51,6 +51,7 @@ WRIST_UP = (60, 235, 245)     # yellow
 WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
 RIMC = (60, 235, 245)      # yellow, on the ask
+DROPC = (235, 200, 60)     # the drop zone under the net
 
 
 def everyone_at(per_person, t):
@@ -304,6 +305,13 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         cv2.rectangle(fr, (int(rx1) - dx, int(ry2) - dy),
                       (int(rx2) - dx, int(ry2 + (ry2 - ry1) * 1.5) - dy),
                       RIMC, max(2, th - 2))
+        # The drop zone: the water directly under the net. A ball that never
+        # appears in here did not go through the hoop, which is the strongest
+        # make/miss signal found so far -- right 51 times out of 54.
+        import dropzone
+        dz = dropzone.box(rim)
+        cv2.rectangle(fr, (dz[0] - dx, dz[1] - dy), (dz[2] - dx, dz[3] - dy),
+                      DROPC, max(2, th - 2))
 
     at = next((b for b in ball_track if abs(b["t"] - t_rel) < 1e-6), None)
     if at:
