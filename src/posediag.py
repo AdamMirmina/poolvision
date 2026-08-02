@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 
 import arc
+import facing
 import hoops
 import shooter
 import threept
@@ -52,6 +53,7 @@ WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
 RIMC = (60, 235, 245)      # yellow, on the ask
 DROPC = (235, 200, 60)     # the drop zone under the net
+FACEC = (255, 130, 220)    # which way a person is turned
 
 
 def everyone_at(per_person, t):
@@ -355,6 +357,34 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             wcol = WRIST_UP if above else WRIST_DOWN
             cv2.circle(fr, (wx, wy), int(10 * S), wcol, -1, cv2.LINE_AA)
             cv2.circle(fr, (wx, wy), int(10 * S), (20, 20, 20), max(1, th - 2), cv2.LINE_AA)
+
+        # Which way the model reads them as turned, over their head, with how
+        # strongly. and "have a minimal
+        # percentage above the arrow."
+        #
+        # Left or right, not a free vector, because that is the reading the
+        # pipeline now uses and it is the one checkable at a glance. A front/back
+        # arrow drawn on an overhead view is nearly impossible to judge by eye,
+        # which is how six of seven people came to read as facing the camera
+        # without anyone noticing.
+        sd = facing.side(kp) if kp else None
+        if sd is not None and hy is not None:
+            d_, mag = sd
+            hx = (x1 + x2) / 2
+            ay0 = int(hy - 40 * S)
+            acol = FACEC if d_ else (160, 160, 160)
+            if d_:
+                L = int(38 * S)
+                cv2.arrowedLine(fr, (int(hx - d_ * L * 0.5), ay0),
+                                (int(hx + d_ * L * 0.5), ay0),
+                                acol, max(2, th - 1), cv2.LINE_AA, tipLength=0.45)
+                lab = f"{mag * 100:.0f}%"
+            else:
+                cv2.circle(fr, (int(hx), ay0), int(7 * S), acol, max(2, th - 2), cv2.LINE_AA)
+                lab = "square"
+            (tw2, _), _ = cv2.getTextSize(lab, cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, max(1, th - 2))
+            cv2.putText(fr, lab, (int(hx - tw2 / 2), ay0 - int(12 * S)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * S, acol, max(1, th - 2), cv2.LINE_AA)
 
         # Only the shooter is labeled. Everyone else is a box, a head line and
         # two wrist markers, which already say everything the numbers did.

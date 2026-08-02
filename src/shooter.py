@@ -442,9 +442,11 @@ def attribute(ball_track, per_person, rig=None, hoop=None):
                 for pid, box, d in near:
                     snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - flight["t"]))
                     kp = per_person[pid]["at"][snaps[0]].get("kp") if snaps else None
-                    fv = facing.toward(kp, tgt, facing.body_center(kp, box)) if kp else None
-                    if fv is not None:
-                        fv *= facing.orientation(rig, hoop)
+                    # the left/right reading, which measures better than the
+                    # front/back one it replaces (89% against 81%) and does not
+                    # need a face the camera cannot see.
+                    bc = facing.body_center(kp, box) if kp else None
+                    fv = facing.side_toward(kp, tgt[0], bc[0] if bc else None) if kp else None
                     scored.append((pid, box, d, fv))
                 toward = [z for z in scored if z[3] is not None and z[3] > FACE_TOWARD]
                 away = {z[0] for z in scored if z[3] is not None and z[3] < FACE_AWAY}

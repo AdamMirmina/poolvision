@@ -24,6 +24,8 @@ The geometry, from the top-down-ish camera this pool has:
 from __future__ import annotations
 
 NOSE, LEYE, REYE, LEAR, REAR, LSH, RSH = 0, 1, 2, 3, 4, 5, 6
+LELB, RELB, LWR, RWR = 7, 8, 9, 10
+LHIP, RHIP = 11, 12
 CONF = 0.25
 
 
@@ -49,17 +51,39 @@ def facing(kp):
     a = (-sy / n, sx / n)
     b = (sy / n, -sx / n)
 
-    # Toward the camera or away from it. Their own left shoulder appearing on
-    # the image right means we are looking at their front.
+    # Toward the camera or away from it, in order of how much the evidence is
+    # worth.
+    #
+    # Shoulder order is the weakest and it is the fallback: their own left
+    # shoulder appearing on the image right means we are looking at their front.
+    # It is also what the front/back call collapsed to whenever the face was
+    # hidden, which is exactly the case that produced the wrong readings.
     toward_camera = ls[0] > rs[0]
 
-    # The face keypoints are the more reliable signal when they exist at all: a
-    # visible nose means we are looking at a front, whatever the shoulders say.
+    # ARMS. Right, and it
+    # needs no face at all: elbows and wrists sit forward of the shoulder line,
+    # so which side of that line the limbs fall on IS the front.
+    #
+    # (Nipples were the other suggestion. COCO pose has 17 keypoints and none of
+    # them are on the chest, so there is nothing to read.)
+    limbs = [kp[i] for i in (LELB, RELB, LWR, RWR) if kp[i][2] > CONF]
+    if limbs:
+        mx = sum(q[0] for q in limbs) / len(limbs)
+        my = sum(q[1] for q in limbs) / len(limbs)
+        smx, smy = (ls[0] + rs[0]) / 2, (ls[1] + rs[1]) / 2
+        # Which perpendicular the limbs sit on. `a` is one normal to the
+        # shoulders; a positive projection means the limbs are on a's side.
+        proj = a[0] * (mx - smx) + a[1] * (my - smy)
+        if abs(proj) > n * 0.10:            # ignore arms hanging on the line
+            toward_camera = (a[1] > 0) == (proj > 0)
+
+    # The face still wins where it exists, being the least ambiguous of the
+    # three: a visible nose means we are looking at a front, whatever else says.
     face = sum(1 for i in (NOSE, LEYE, REYE) if kp[i][2] > CONF)
     ears = sum(1 for i in (LEAR, REAR) if kp[i][2] > CONF)
     if face >= 2:
         toward_camera = True
-    elif face == 0 and ears >= 1:
+    elif face == 0 and ears >= 1 and not limbs:
         toward_camera = False
 
     # "Toward the camera" is downward in the image for this rig, since the camera
@@ -120,7 +144,11 @@ def readable(kp):
         return False
     # Front or back has to be evidenced, not inferred from shoulder order, which
     # is exactly the part that fails at distance.
-    return sum(1 for i in (NOSE, LEYE, REYE) if kp[i][2] > CONF) >= 2 or         sum(1 for i in (LEAR, REAR) if kp[i][2] > CONF) >= 1
+    # Face, ears, OR arms. Arms are the addition: they are visible on people
+    # turned away from the camera, which is precisely where the other two fail.
+    return (sum(1 for i in (NOSE, LEYE, REYE) if kp[i][2] > CONF) >= 2
+            or sum(1 for i in (LEAR, REAR) if kp[i][2] > CONF) >= 1
+            or sum(1 for i in (LELB, RELB, LWR, RWR) if kp[i][2] > CONF) >= 2)
 
 
 def toward(kp, target, center):
@@ -149,3 +177,73 @@ def body_center(kp, box=None):
     if box:
         return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LEFT versus RIGHT, from the wrists against the head.
+#
+# the rule, and it beats the front/back measure it replaces: "if wrists are
+# left of the head shooter's facing left, and if wrists are right they're facing
+# right. if they're opposite sides, they're facing forward or back and probably
+# aren't the shooter."
+#
+# It works because it never asks the question that was capping the other one.
+# Front-versus-back needs a face the camera often cannot see, and when it cannot
+# the call collapses -- on one frame six of seven people read as facing the
+# camera. Left-versus-right needs no face at all, and left/right is the axis that
+# actually matters here, because the two hoops sit at the two ends of the pool.
+#
+# Measured on 32 attributed shots: it points at the hoop the shot went to on 25
+# of the 28 it can read, which is 89% against the 81% of the front/back version.
+# The other 4 straddle, one wrist each side, which is the "probably aren't the
+# shooter" case rather than a failure to read.
+
+DEAD = 0.15          # wrists this close to the head, in shoulder-widths, are neutral
+
+
+def head_x(kp):
+    pts = [kp[i] for i in (NOSE, LEYE, REYE, LEAR, REAR) if kp[i][2] > CONF]
+    if pts:
+        return sum(p[0] for p in pts) / len(pts)
+    sh = [kp[i] for i in (LSH, RSH) if kp[i][2] > CONF]
+    return sum(p[0] for p in sh) / len(sh) if len(sh) == 2 else None
+
+
+def side(kp):
+    """(direction, strength): +1 image-right, -1 image-left, 0 straddling.
+
+    `strength` is how far the wrists sit from the head in shoulder-widths,
+    capped at 1, so a marginal reading can be shown and weighted as marginal
+    rather than treated the same as an unmistakable one.
+    """
+    if not kp:
+        return None
+    hx = head_x(kp)
+    if hx is None:
+        return None
+    sh = [kp[i] for i in (LSH, RSH) if kp[i][2] > CONF]
+    if len(sh) < 2:
+        return None
+    w = max(12.0, abs(sh[0][0] - sh[1][0]))
+    ws = [kp[i] for i in (LWR, RWR) if kp[i][2] > CONF]
+    if not ws:
+        return None
+    sides = [(q[0] - hx) / w for q in ws]
+    if len(sides) == 2 and min(sides) < -DEAD and max(sides) > DEAD:
+        return (0, 0.0)                 # one wrist each side: square on
+    m = sum(sides) / len(sides)
+    if abs(m) < DEAD:
+        return (0, 0.0)
+    return (1 if m > 0 else -1, min(1.0, abs(m)))
+
+
+def side_toward(kp, target_x, body_x):
+    """+strength if the wrists point at the target, -strength if away, 0 if square on."""
+    r = side(kp)
+    if not r or body_x is None:
+        return None
+    d, mag = r
+    if d == 0:
+        return 0.0
+    want = 1 if target_x > body_x else -1
+    return mag if d == want else -mag
