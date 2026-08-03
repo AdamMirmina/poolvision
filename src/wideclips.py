@@ -23,6 +23,9 @@ from __future__ import annotations
 
 import argparse
 import json
+
+import hoops
+import overlay
 import subprocess
 from pathlib import Path
 
@@ -59,6 +62,8 @@ def main():
     h = int(OUT_W * H / W) // 2 * 2
     ff = imageio_ffmpeg.get_ffmpeg_exe()
 
+    # Drawn once: the camera does not move within a recording.
+    lay = overlay.layer(hoops.rig_for(args.video + '.MOV'), OUT_W, h)
     made = 0
     for n in sorted(wanted):
         j = judged.get(n)
@@ -80,7 +85,11 @@ def main():
             ok, fr = cap.read()
             if not ok:
                 break
-            proc.stdin.write(cv2.resize(fr, (OUT_W, h)).tobytes())
+            small = cv2.resize(fr, (OUT_W, h))
+            # The rig's geometry on every frame, so any pause is readable.
+            #
+            overlay.burn(small, lay)
+            proc.stdin.write(small.tobytes())
             wrote += 1
         proc.stdin.close()
         proc.wait()

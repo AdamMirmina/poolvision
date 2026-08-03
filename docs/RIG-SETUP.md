@@ -121,7 +121,85 @@ by the diving board.
   the frame or the far end lands off screen and it reads as a slanted band.
 - **Only the relevant hoop's wall is drawn**, behind a toggle.
 
-## 7. Drop zone axes (`drop`, from `src/dropfit.py`)
+## Saying where something is
+
+the compass, so a correction can be given out loud without ambiguity:
+
+- **north** = the diving board end, away from the camera, toward the top of frame
+- **south** = toward the camera, bottom of frame
+- east/west across the frame as usual
+
+"The left zone is too far north" is unmistakable. "Too far up" is not, and cost a
+round of guessing.
+
+## 7. Drop zone: the full procedure, and every way it has been got wrong
+
+**Run these four in order and paste the results in. Do not derive any of it by
+reasoning about the geometry -- that has now failed four separate times, each
+time producing something that looked plausible in a picture.**
+
+```
+py src/waterfit.py  --video IMG_XXXX.MOV     # waterline + wall, per hoop
+py src/poolplane.py --video IMG_XXXX.MOV     # the water plane's vanishing points
+py src/dropfit.py   --video IMG_XXXX.MOV     # along/into axes, per hoop
+py src/dropcentre.py                         # where made balls actually land
+py src/dropsweep.py                          # size, against judged shots
+py src/rigcheck.py  --video IMG_XXXX.MOV     # LOOK at it
+```
+
+### The four wrong turns, so they are not repeated
+
+**1. Sheared box extended straight down the image.** The zone is a patch of the
+water SURFACE, so its sides run along the wall and away from it. "Away from the
+wall" equals "down the image" only if the camera looks straight down. It doesn't,
+so the zone ran along the pool's length: at the left hoop it walked onto the
+concrete, at the right it slid down the wall.
+
+**2. Picking "into" as whichever direction stays over water longest.** Walking
+ALONG a wall also stays over water the whole way, so it can win. It did, and the
+shootout's left zone drifted north. `dropfit.py` now decides "along" by matching
+the water boundary's local tangent at that hoop and takes "into" as the other
+family; only its SIGN comes from the water.
+
+**3. Assuming the two hoops are on parallel walls.** They are not. The right
+stands on a long wall, the left on the step-notch edge, so which vanishing point
+means "along" swaps between them. This is also why the left hoop's waterline
+slope never fitted stably (-0.43 one frame, -0.73 another, residuals past 500px):
+its wall is near-vertical in the image, so columns walked downward cross it at a
+glancing angle and the slope is meaningless. Measure per hoop, never per session.
+
+**4. Centering the zone under the net.** The "ball falls straight down" model is
+wrong and measurably so: centering recall from 64% to 36%. A made ball carries
+through the net and out into the pool by about 1.2 rim widths, consistently, both
+hoops, two sessions (`dropcentre.py`). The zone spans 0.30 to 1.60 rim widths out
+from the waterline point for that reason.
+
+**A fifth thing was tested and rejected**, which is worth recording so nobody
+re-discovers it: made balls also land offset ALONG the wall (+0.88 rim widths at
+the left hoop, -1.13 at the right). Shifting the zone by those medians makes
+recall much WORSE, 67% to 29%, because the spread straddles zero and the median
+does not represent it. Along stays centered at 0.
+
+### The decision must test the shape that gets drawn
+
+`dropped()` tested `box()` -- an axis-aligned rectangle -- while the quad was
+only ever what got DRAWN. Review frames showed one region while the veto fired on
+another, for weeks, because a rectangle under a rim looks plausible enough in a
+picture. It is a real point-in-polygon test now. **If you change the zone's
+shape, check that the test changed with it.**
+
+### Size
+
+1.10 x 1.30 rim widths, a small square, per review. Measured on 66 judged makes and
+125 judged misses: the widest setting tried (1.80 x 1.60) catches 73% of makes
+against this one's 67%, but what the rule trades on is the veto's precision
+("never appeared here, so it missed"), and that only moves 83.3% to 82.0%. The
+square costs about 1.3 points. Stated rather than buried.
+
+Note the old "34 of 37 makes" quoted for years described the RECTANGLE, over a
+smaller sample, before the shape was corrected. Recall was never that high.
+
+## 7a. Drop zone axes (`drop`, from `src/dropfit.py`)
 
 **Run `src/dropfit.py` and paste `drop=` into the rig. Do not derive the zone
 from the waterline slope alone.**

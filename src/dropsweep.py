@@ -141,8 +141,10 @@ def zone_sized(rim, dax, half, depth):
     ax, ay = dax["along"]
     ix, iy = dax["into"]
     c = []
-    for s in (-half, half):
-        for d in (dropzone.DEPTH_LO, depth):
+    hd = depth / 2.0
+    ca, ci = dax.get('center', (0.0, 0.8))   # measured landing point
+    for s in (ca - half, ca + half):
+        for d in (ci - hd, ci + hd):
             c.append((px + ax * s * w + ix * d * w, py + ay * s * w + iy * d * w))
     return [c[0], c[1], c[3], c[2]]
 

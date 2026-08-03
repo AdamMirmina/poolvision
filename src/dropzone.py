@@ -38,9 +38,18 @@ from __future__ import annotations
 # So a visibly square zone costs about 1.7 points of veto precision. Worth it,
 # and stated rather than hidden.
 HALF_W = 0.55
+# Half-depth, because the square is CENTERED on the point under the rim.
+# 0.65 keeps the same 1.30 total depth the sweep was run at.
+HALF_D = 0.65
+# Kept for the legacy quad() path used by sessions with no measured axes.
 DEPTH_LO = 0.3
 DEPTH_HI = 1.3
 WINDOW_S = 1.6
+
+# Compass, review's: NORTH is the diving board end, away from the camera and
+# toward the top of the frame. SOUTH is toward the camera. Used in review
+# notes so a direction can be said out loud without ambiguity -- "too far
+# north" is unmistakable in a way that "too far up" is not.
 
 
 def box(rim):
@@ -100,9 +109,36 @@ def quad_on_plane(rim, drop):
     px, py = drop["p"]
     ax, ay = drop["along"]
     ix, iy = drop["into"]
+    # CENTERED on the point below the rim, not started there and pushed outward.
+    #
+    # The offset version put the near edge DEPTH_LO out and the far edge DEPTH_HI
+    # out, so the whole square sat to one side of the net and any error in the
+    # "into" direction slid it further. On the shootout's left hoop that left it
+    # visibly off: review, "left zone is not aligned under the backboard... it's too
+    # far away from the camera."
+    #
+    # Centering is also the more faithful model. A ball through the net falls
+    # essentially straight down, so the water it enters is the patch AROUND the
+    # point under the rim, not a patch beginning some distance out from it. As a
+    # bonus it makes the sign of "into" nearly irrelevant, which removes the one
+    # step in this measurement that can silently come out backwards.
+    # Centered where balls from MADE shots actually land, measured (src/
+    # dropcentre.py) rather than derived. Both derivations were wrong, in
+    # different directions:
+    #
+    #   Centered on the point under the rim -- the "ball falls straight down"
+    #   model -- recall collapsed from 64% to 36%. The ball does not land under
+    #   the net; it carries through and out into the pool by about 1.2 rim
+    #   widths, consistently, at both hoops across two sessions.
+    #
+    #   Offset outward but centered at along=0, it still sat wrong, because the
+    #   landing is ALSO offset along the wall: +0.88 rim widths at the left hoop
+    #   and -1.13 at the right, opposite signs. Nothing about the geometry
+    #   predicts that; only the judged makes show it.
+    ca, ci = drop.get("center", (0.0, (DEPTH_LO + DEPTH_HI) / 2))
     corners = []
-    for s in (-HALF_W, HALF_W):
-        for d in (DEPTH_LO, DEPTH_HI):
+    for s in (ca - HALF_W, ca + HALF_W):
+        for d in (ci - HALF_D, ci + HALF_D):
             corners.append((px + ax * s * w + ix * d * w,
                             py + ay * s * w + iy * d * w))
     # Order them around the patch rather than by the loop, so it draws as a quad

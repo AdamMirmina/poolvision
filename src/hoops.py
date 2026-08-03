@@ -171,9 +171,9 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
                "right": {"water_y_at_center": 1045.9, "slope": 0.8299}},
         # Drop-zone axes on the water plane, src/dropfit.py 2026-08-03.
         drop={'left': {'p': [938.5, 1251.4], 'along': [-0.0907, 0.9959],
-                       'into': [0.9853, -0.1711]},
+                       'into': [0.9853, -0.1711], 'center': [0.0, 0.95]},
               'right': {'p': [3460.0, 1045.9], 'along': [0.7727, 0.6348],
-                        'into': [-0.9815, 0.1914]}},
+                        'into': [-0.9815, 0.1914], 'center': [0.0, 0.95]}},
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
@@ -244,9 +244,9 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         # step-notch edge, not on a long wall -- which is also why its waterline
         # slope never fitted stably.
         drop={'left': {'p': [981.0, 1200.3], 'along': [-0.0869, 0.9962],
-                       'into': [0.8594, 0.5113]},
+                       'into': [0.8594, 0.5113], 'center': [0.0, 0.95]},
               'right': {'p': [3491.0, 1015.7], 'along': [0.7694, 0.6388],
-                        'into': [-0.9567, -0.2911]}},
+                        'into': [-0.9567, -0.2911], 'center': [0.0, 0.95]}},
     )
 
 
