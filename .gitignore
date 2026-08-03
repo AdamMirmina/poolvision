@@ -48,3 +48,10 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# BEGIN:credentials
+# Credentials never get committed. See docs/CREDENTIALS.md.
+.env
+.env.*
+!.env.example
+# END:credentials
