@@ -15,12 +15,31 @@ concern the descent's shape near the rim rather than where the ball ended up.
 
 from __future__ import annotations
 
-# The column under the rim, in rim widths. Swept: a half-width of 0.9 catches 34
-# of 37 makes, and tightening it to 0.5 drops that to 16 while barely improving
-# precision, which is the wrong trade for a rule whose whole value is its recall.
-HALF_W = 0.9
+# The patch of water under the net, in rim widths. 1.10 wide by 1.30 deep, so it
+# reads as a small square under the net rather than a wide band.
+#
+# Re-swept 2026-08-03 (src/dropsweep.py) rather than reusing the old number, for
+# two reasons that both invalidated it:
+#
+#   The old "34 of 37 makes" was measured against box() -- the axis-aligned
+#   rectangle -- because that is what dropped() actually tested, while the quad
+#   was only ever what got DRAWN. The picture showed one region and the rule
+#   tested another.
+#
+#   The shape is now correct (a patch of the water plane running out from the
+#   wall), so the old sweep does not describe this zone at all.
+#
+# Measured on 66 judged makes and 125 judged misses, with a real point-in-polygon
+# test. Recall is far lower than the old figure implied and does not depend on
+# width nearly as much as feared: 1.80x1.60 catches 73% of makes, 1.10x1.30
+# catches 64%. What matters is the veto's precision -- "never appeared here, so
+# it missed" -- and that barely moves: 83.5% at the widest against 81.8% here.
+#
+# So a visibly square zone costs about 1.7 points of veto precision. Worth it,
+# and stated rather than hidden.
+HALF_W = 0.55
 DEPTH_LO = 0.3
-DEPTH_HI = 1.6
+DEPTH_HI = 1.3
 WINDOW_S = 1.6
 
 
@@ -98,13 +117,41 @@ def zone(rim, water=None, drop=None):
     return quad_on_plane(rim, drop) if drop else quad(rim, water)
 
 
-def dropped(hits, rim, t_descent, window=WINDOW_S):
-    """Did any sighting land in the column below the rim, around the descent?"""
+def contains(poly, x, y):
+    """Point in polygon, so the rule tests the shape that gets drawn."""
+    n = len(poly)
+    hit = False
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y):
+            xx = (x2 - x1) * (y - y1) / (y2 - y1) + x1
+            if x < xx:
+                hit = not hit
+    return hit
+
+
+def dropped(hits, rim, t_descent, window=WINDOW_S, water=None, drop=None):
+    """Did any sighting land in the zone under the net, around the descent?
+
+    Tests the ZONE, not a rectangle. It used to test box() -- an axis-aligned
+    column -- while quad()/zone() was only what got drawn, so the review frames
+    showed one region and the veto fired on another. That is exactly the drift
+    posediag exists to prevent one file over, and it survived because a rectangle
+    under a rim looks plausible enough in a picture.
+
+    Falls back to the rectangle only when a session has no measured axes, which
+    is the honest behavior for footage nobody has set up yet.
+    """
+    poly = zone(rim, water, drop) if (water or drop) else None
     bx1, by1, bx2, by2 = box(rim)
     for h in hits:
         if not (t_descent - 0.3 <= h["t"] <= t_descent + window):
             continue
-        if bx1 <= h["x"] <= bx2 and by1 <= h["y"] <= by2:
+        if poly:
+            if contains(poly, h["x"], h["y"]):
+                return True
+        elif bx1 <= h["x"] <= bx2 and by1 <= h["y"] <= by2:
             return True
     return False
 

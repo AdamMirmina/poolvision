@@ -113,7 +113,9 @@ def main():
             # 51 times out of 54 on the judged shots, and it fires on 45% of
             # them, against the net shimmer's 11-for-2 on a much smaller slice.
             hits = rw_hits.get(j["video"], {}).get(hoop, [])
-            if hits and not dropzone.dropped(hits, rig.rims[hoop], float(j["t"])):
+            if hits and not dropzone.dropped(hits, rig.rims[hoop], float(j["t"]),
+                                             water=(rig.water or {}).get(hoop),
+                                             drop=(rig.drop or {}).get(hoop)):
                 pi = min(pi, 0.25)
                 vetoed += 1
             elif video.exists():

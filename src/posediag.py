@@ -562,7 +562,9 @@ def main():
         pm = pmake.get(str(n))
         if rw_hits:
             hits = rw_hits.get(hoop, [])
-            fell = _dz.dropped(hits, rr, float(j["t"])) if hits else None
+            fell = _dz.dropped(hits, rr, float(j["t"]),
+                               water=(rig.water or {}).get(hoop),
+                               drop=(rig.drop or {}).get(hoop)) if hits else None
             if fell is True:
                 trace.append(("drop zone", "the ball fell into the water under the net"))
             elif fell is False:
