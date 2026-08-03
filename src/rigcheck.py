@@ -73,7 +73,8 @@ def draw(im, rig, hoop):
     label(im, (int(b[0]), int(b[1]) - 8), "net box", (200, 200, 200))
 
     water = (rig.water or {}).get(hoop)
-    q = dropzone.quad(rim, water)
+    dropax = (rig.drop or {}).get(hoop)
+    q = dropzone.zone(rim, water, dropax)
     pts = np.array([[int(a), int(bb)] for a, bb in q], dtype=np.int32)
     cv2.polylines(im, [pts], True, DROP, 4)
     label(im, (pts[0][0], pts[0][1] - 8),

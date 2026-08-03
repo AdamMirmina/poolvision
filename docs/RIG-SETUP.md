@@ -121,7 +121,43 @@ by the diving board.
   the frame or the far end lands off screen and it reads as a slanted band.
 - **Only the relevant hoop's wall is drawn**, behind a toggle.
 
-## 7. Drop zone (`dropzone.py`)
+## 7. Drop zone axes (`drop`, from `src/dropfit.py`)
+
+**Run `src/dropfit.py` and paste `drop=` into the rig. Do not derive the zone
+from the waterline slope alone.**
+
+The zone is a patch of the water SURFACE under the net, so its sides run ALONG
+the wall and AWAY from the wall. The first version sheared to the wall and then
+extended straight down the image, which is the same thing only if the camera
+looks straight down. It doesn't, so the zone ran along the pool's length instead
+of out from the wall: at the left hoop it walked onto the concrete, at the right
+it leaned down the wall instead of reaching into the water.
+
+Under perspective neither direction is constant across the image, because
+parallel world lines converge. So `src/poolplane.py` measures the two vanishing
+points of the water plane from the pool's own boundary, and at any point "along
+the wall" is toward one and "away from the wall" is toward the other. That is
+exact, not an approximation.
+
+**The trap that makes this per-hoop rather than per-session: THE TWO HOOPS ARE
+NOT ON PARALLEL WALLS.** The right hoop stands on a long wall; the left stands on
+the step-notch edge, which belongs to the perpendicular family. So which
+vanishing point means "along" swaps between them. `dropfit.py` does not decide
+that by hand: of the four candidate directions it picks "into" as the one that
+stays over water longest, which is self-verifying and cannot come out backwards.
+
+This is also the explanation for something that looked like noise for days: the
+LEFT hoop's waterline slope never fitted stably (-0.43 one frame, -0.73 another,
+residuals over 500px). Its wall is nearly vertical in the image, so walking
+columns downward to find the water crosses the boundary at a glancing angle and
+the fitted slope is meaningless. The plane-based axes give it -11.5, i.e. very
+nearly vertical, which is correct and which no slope fit was ever going to say.
+
+Sizes are separate and were earned: half-width 0.9 rim widths, depth 0.3 to 1.6.
+34 of 37 makes land inside; at half-width 0.5 only 16 do. Fixing the SHAPE is not
+an invitation to re-tune those.
+
+## 7b. Drop zone sizes (`dropzone.py`)
 
 The column of water under the net. This is the strongest make/miss signal on the
 project: 34 of 37 makes put the ball in it, so a shot that never appears there is

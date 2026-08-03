@@ -59,6 +59,45 @@ def quad(rim, water):
             (int(rx), int(bot + m * (rx - cx))), (int(lx), int(bot + m * (lx - cx)))]
 
 
+def quad_on_plane(rim, drop):
+    """The drop zone from measured water-plane axes: the correct construction.
+
+    `drop` is {"p", "along", "into"} from src/dropfit.py. The zone is a patch of
+    the water surface under the net, so one side runs ALONG the wall and the
+    other runs AWAY from it, into the pool.
+
+    The version above shears to the wall and then extends straight down the
+    image, which is the same thing only if the camera looks straight down. It
+    does not, so that zone ran along the pool's length rather than out from the
+    wall: on the left hoop it walked up onto the concrete, on the right it leaned
+    down the wall instead of reaching into the water.
+
+    Sizes are unchanged. HALF_W and the depths were measured against real makes
+    (34 of 37 land inside; tightening to 0.5 catches 16) and this is a fix to the
+    zone's SHAPE, not an invitation to re-tune numbers that were earned.
+    """
+    x1, y1, x2, y2 = rim
+    w = x2 - x1
+    px, py = drop["p"]
+    ax, ay = drop["along"]
+    ix, iy = drop["into"]
+    corners = []
+    for s in (-HALF_W, HALF_W):
+        for d in (DEPTH_LO, DEPTH_HI):
+            corners.append((px + ax * s * w + ix * d * w,
+                            py + ay * s * w + iy * d * w))
+    # Order them around the patch rather than by the loop, so it draws as a quad
+    # and not as a bow tie.
+    a, b, c, e = corners[0], corners[1], corners[3], corners[2]
+    return [(int(a[0]), int(a[1])), (int(b[0]), int(b[1])),
+            (int(c[0]), int(c[1])), (int(e[0]), int(e[1]))]
+
+
+def zone(rim, water=None, drop=None):
+    """The drop zone, measured axes when the session has them."""
+    return quad_on_plane(rim, drop) if drop else quad(rim, water)
+
+
 def dropped(hits, rim, t_descent, window=WINDOW_S):
     """Did any sighting land in the column below the rim, around the descent?"""
     bx1, by1, bx2, by2 = box(rim)

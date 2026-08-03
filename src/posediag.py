@@ -324,7 +324,7 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # appears in here did not go through the hoop, which is the strongest
         # make/miss signal found so far -- right 51 times out of 54.
         import dropzone
-        q = dropzone.quad(rim, water)
+        q = dropzone.zone(rim, water, (rig.drop or {}).get(hoop))
         if water_mask is not None:
             q = dropzone.clip_to_water(q, water_mask, (
                 sum(a for a, _ in q) / 4 + dx, sum(b for _, b in q) / 4 + dy))

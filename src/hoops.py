@@ -78,6 +78,23 @@ class Rig:
     # under the rim until the water mask starts, and fit a line through those
     # entry points -- its intercept is the waterline and its slope is the wall.
     water: dict[str, dict] | None = None
+    # The drop zone's own axes on the water plane, per hoop, from src/dropfit.py:
+    # {"p": waterline point under the rim, "along": unit vector along the wall,
+    # "into": unit vector away from the wall and into the water}.
+    #
+    # This supersedes deriving the zone from `water` alone. The zone is a patch
+    # of the water SURFACE, so its sides run along the wall and away from it, and
+    # "away from the wall" is not "down the image" unless the camera looks
+    # straight down. Built the old way it walked onto the concrete at the left
+    # hoop and ran down the wall at the right one.
+    #
+    # It has to be per hoop rather than one rule for the session, because THE TWO
+    # HOOPS ARE NOT ON PARALLEL WALLS: the right stands on a long wall, the left
+    # on the step-notch edge. Which vanishing point means "along" therefore swaps
+    # between them, and that is also why the left hoop's waterline slope kept
+    # fitting unstably -- its wall is nearly vertical in the image, so walking
+    # columns down it produces a meaningless slope.
+    drop: dict[str, dict] | None = None
 
     def det_boxes(self) -> dict[str, tuple[int, int, int, int]]:
         """The detector's crops, falling back to the review crops for old rigs."""
@@ -152,6 +169,11 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # says the measurement is missing.
         water={"left": {"water_y_at_center": 1251.4, "slope": -0.6023},
                "right": {"water_y_at_center": 1045.9, "slope": 0.8299}},
+        # Drop-zone axes on the water plane, src/dropfit.py 2026-08-03.
+        drop={'left': {'p': [938.5, 1251.4], 'along': [-0.0907, 0.9959],
+                       'into': [0.9853, -0.1711]},
+              'right': {'p': [3460.0, 1045.9], 'along': [0.7727, 0.6348],
+                        'into': [-0.9815, 0.1914]}},
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
@@ -217,6 +239,14 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         # squinted, which is the whole reason RIG-SETUP says to draw it.
         water={"left": {"water_y_at_center": 1200.3, "slope": -0.7334},
                "right": {"water_y_at_center": 1015.7, "slope": 0.8414}},
+        # Drop-zone axes on the water plane, src/dropfit.py 2026-08-03.
+        # The left hoop's 'along' is nearly vertical because it stands on the
+        # step-notch edge, not on a long wall -- which is also why its waterline
+        # slope never fitted stably.
+        drop={'left': {'p': [981.0, 1200.3], 'along': [-0.0869, 0.9962],
+                       'into': [0.8594, 0.5113]},
+              'right': {'p': [3491.0, 1015.7], 'along': [0.7694, 0.6388],
+                        'into': [-0.9567, -0.2911]}},
     )
 
 
