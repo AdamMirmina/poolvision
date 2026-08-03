@@ -87,7 +87,34 @@ def quad(rim, water):
             (int(rx), int(bot + m * (rx - cx))), (int(lx), int(bot + m * (lx - cx)))]
 
 
-def quad_on_plane(rim, drop):
+_ZONES = [None]
+
+
+def _override(key):
+    """Offsets dragged from review, if this hoop has any.
+
+    Read from out/zones.json (written by scripts/zones.mjs pull). Absent file or
+    absent row means the committed value stands, so nothing breaks on a machine
+    that has never pulled.
+    """
+    if not key:
+        return None
+    if _ZONES[0] is None:
+        import json as _json
+        import pathlib as _pl
+        f = _pl.Path(__file__).resolve().parent.parent / "out/zones.json"
+        try:
+            _ZONES[0] = _json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            _ZONES[0] = {}
+    row = _ZONES[0].get(key)
+    if not row:
+        return None
+    a, i = row.get("alongOff"), row.get("intoOff")
+    return (a, i) if a is not None and i is not None else None
+
+
+def quad_on_plane(rim, drop, key=None):
     """The drop zone from measured water-plane axes: the correct construction.
 
     `drop` is {"p", "along", "into"} from src/dropfit.py. The zone is a patch of
@@ -136,6 +163,11 @@ def quad_on_plane(rim, drop):
     #   and -1.13 at the right, opposite signs. Nothing about the geometry
     #   predicts that; only the judged makes show it.
     ca, ci = drop.get("center", (0.0, (DEPTH_LO + DEPTH_HI) / 2))
+    # An override dragged in from review wins over the committed
+    # value, so tuning a new camera setup does not need a code change.
+    ov = _override(key)
+    if ov:
+        ca, ci = ov
     corners = []
     for s in (ca - HALF_W, ca + HALF_W):
         for d in (ci - HALF_D, ci + HALF_D):
@@ -148,9 +180,13 @@ def quad_on_plane(rim, drop):
             (int(c[0]), int(c[1])), (int(e[0]), int(e[1]))]
 
 
-def zone(rim, water=None, drop=None):
-    """The drop zone, measured axes when the session has them."""
-    return quad_on_plane(rim, drop) if drop else quad(rim, water)
+def zone(rim, water=None, drop=None, key=None):
+    """The drop zone, measured axes when the session has them.
+
+    `key` is "<video>#<hoop>", used to look up an offset dragged from the
+    reviewer. Without one the committed value stands.
+    """
+    return quad_on_plane(rim, drop, key) if drop else quad(rim, water)
 
 
 def contains(poly, x, y):

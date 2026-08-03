@@ -28,8 +28,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 
 import arc
+import dropzone as _dz
 import facing
 import hoops
+import posts
 import shooter
 import threept
 from frames import frame_at
@@ -324,7 +326,8 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # appears in here did not go through the hoop, which is the strongest
         # make/miss signal found so far -- right 51 times out of 54.
         import dropzone
-        q = dropzone.zone(rim, water, (rig.drop or {}).get(hoop))
+        q = dropzone.zone(rim, water, (rig.drop or {}).get(hoop),
+                          key=f"{args.video}#{hoop}")
         if water_mask is not None:
             q = dropzone.clip_to_water(q, water_mask, (
                 sum(a for a, _ in q) / 4 + dx, sum(b for _, b in q) / 4 + dy))
@@ -591,7 +594,10 @@ def main():
         cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr,
                              rim_tilt=tilt, ball_now=ball_now),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
-        line = (rig.three_lines or {}).get(hoop)
+        # Measured in THIS frame, not read from a stored guess. The posts
+        # stand in floats that drift, so one anchor is right at one moment
+        # and slowly wrong after.
+        line = posts.anchors_for(fr, rig).get(hoop)
         if line:
             cv2.imwrite(str(args.out / f"{stem}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
@@ -615,6 +621,15 @@ def main():
             "net": [round(rr[0]), round(rr[3]), round(rr[2]),
                     round(rr[3] + (rr[3] - rr[1]) * 1.5)],
             "wide": list(rig.pool),
+            # The zone AND the axes it was built from, so the tuner on
+            # poolean can redraw it live and turn a drag into an offset
+            # instead of review telling me "a little more south" each time.
+            "zone": [[round(a), round(b)] for a, b in
+                     _dz.zone(rr, (rig.water or {}).get(hoop),
+                              (rig.drop or {}).get(hoop),
+                              key=f"{args.video}#{hoop}")],
+            "zoneAxes": ((rig.drop or {}).get(hoop) or None),
+            "rimW": round(rr[2] - rr[0]),
             "has3pt": bool((rig.three_lines or {}).get(j.get("hoop", "left")) and rig.quad),
         })
         print(f"  #{n}: {how}, {len(people)} people boxed, "
