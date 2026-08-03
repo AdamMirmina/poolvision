@@ -43,3 +43,8 @@ Thumbs.db
 # Judged clips are ground truth review produced by hand -- the most expensive
 # artifact in this repo. Keep it versioned.
 !labels/judged.json
+
+# Credentials. Never committed; see docs/CREDENTIALS.md.
+.env
+.env.*
+!.env.example

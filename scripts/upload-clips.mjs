@@ -15,9 +15,8 @@
 import fs from "fs";
 import path from "path";
 
-const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
-const EM = process.env.PB_EM, PW = process.env.PB_PW;
-if (!EM || !PW) { console.error("set PB_EM and PB_PW"); process.exit(1); }
+import { creds } from "./env.mjs";
+const { EM, PW, URL: PB } = creds();
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf("--" + name);
