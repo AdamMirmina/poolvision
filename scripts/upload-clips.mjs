@@ -24,7 +24,24 @@ const arg = (name, dflt) => {
 };
 const CLIPS = arg("clips", "out/clips");
 const LABELS = arg("labels", "labels/shots.csv");
-const VIDEO = arg("video", "IMG_2403.MOV");
+
+// Which recording these clips belong to. This used to default to IMG_2403.MOV,
+// which is the kind of default that does real damage quietly: running with
+// --clips out/clips_IMG_2528 and no --video filed 22 shootout clips under
+// IMG_2403, where they collided by shot number with that video's already-judged
+// shots and read as part of it. Nothing errored.
+//
+// So: infer it from the clips directory, which already names the recording, and
+// refuse to run when it cannot be inferred rather than guessing.
+const VIDEO = (() => {
+  const explicit = arg("video", null);
+  if (explicit) return explicit.endsWith(".MOV") ? explicit : explicit + ".MOV";
+  const m = /clips[_-](.+)$/.exec(CLIPS.replace(/[\\/]+$/, "").split(/[\\/]/).pop());
+  if (m) return m[1].endsWith(".MOV") ? m[1] : m[1] + ".MOV";
+  console.error(`Cannot tell which recording "${CLIPS}" belongs to.`);
+  console.error("Pass --video IMG_XXXX.MOV explicitly.");
+  process.exit(1);
+})();
 
 async function api(method, p, token, body) {
   const r = await fetch(PB + p, {
