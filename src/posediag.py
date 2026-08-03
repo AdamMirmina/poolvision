@@ -35,7 +35,15 @@ import threept
 from frames import frame_at
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSETS = Path("C:/dev/poolean/web/public/assets")
+
+# Frames are written HERE, inside poolvision, and pushed to the shot record with
+# scripts/upload-diag.mjs. They used to be written straight into poolean's
+# web/public/assets, which committed 83 files at roughly 800 KB each into the one
+# repo that must not carry media -- it uploads to EAS on every iOS build, and
+# keeping exactly this out of it is why poolvision is a separate repo.
+#
+# out/ is gitignored here, so this cannot repeat by accident.
+ASSETS = ROOT / "out/diag"
 
 # BGR. Named, because a previous version labeled a color key in the legend and
 # got the channel order backwards -- "cyan = above" was drawn in yellow, and review

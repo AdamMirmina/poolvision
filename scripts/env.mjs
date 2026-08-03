@@ -27,6 +27,18 @@ export function loadEnv(dir = process.cwd()) {
   return out;
 }
 
+// Put .env into process.env without disturbing anything already set there, so a
+// script that reads process.env directly works with no edit beyond importing
+// this. The environment still wins, which is what keeps CI and containers
+// behaving as before.
+export function hydrate(dir = process.cwd()) {
+  const e = loadEnv(dir);
+  for (const [k, v] of Object.entries(e)) {
+    if (v && !process.env[k]) process.env[k] = v;
+  }
+  return e;
+}
+
 // Environment first, since containers and CI set it there, then .env.
 export function creds() {
   const e = loadEnv();
