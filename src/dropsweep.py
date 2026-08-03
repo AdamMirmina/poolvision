@@ -34,7 +34,10 @@ import dropzone
 import hoops
 
 ROOT = Path(__file__).resolve().parent.parent
-MISS = {"offiron", "airball", "airnet", "behind"}
+# "inout" -- rattled in and out -- is a MISS. It existed in the labels
+# and in nothing here, so those shots were silently dropped from every
+# measurement rather than counted.
+MISS = {"offiron", "airball", "airnet", "behind", "inout"}
 
 
 def inside(poly, x, y):
