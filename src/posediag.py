@@ -575,19 +575,21 @@ def main():
         wmask = cv2.morphologyEx(wmask, cv2.MORPH_CLOSE, np.ones((21, 21), np.uint8))
 
         sub, off = crop_to_action(fr, people, flight, ball_track, pick["t"], pool=rig.pool)
-        out = args.out / f"pose-diag-{n}.jpg"
+        stem = f"pose-diag-{args.video.replace('.MOV','')}-{n}"
+        out = args.out / f"{stem}.jpg"
         cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr,
                              rim_tilt=tilt, ball_now=ball_now),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
         line = (rig.three_lines or {}).get(hoop)
         if line:
-            cv2.imwrite(str(args.out / f"pose-diag-{n}-3pt.jpg"),
+            cv2.imwrite(str(args.out / f"{stem}-3pt.jpg"),
                         draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off,
                              three=line, hoop_center=rim_center, rim=rr, rim_tilt=tilt, ball_now=ball_now,
                              water=(rig.water or {}).get(hoop), water_mask=wmask),
                         [cv2.IMWRITE_JPEG_QUALITY, 86])
         made.append({
             "n": n, "how": how, "note": note, "t": round(pick["t"], 2),
+            "key": f"{args.video.replace('.MOV','')}-{n}",
             "people": len(people), "handsUp": sum(1 for p in people if (p.get("lift") or 0) > 0),
             "ballSeen": len(ball_track),
             "dist": None if pick.get("dist") is None else round(pick["dist"]),
@@ -612,8 +614,15 @@ def main():
     # The facts the picture no longer carries. They render as HTML under the
     # image, where they wrap and can be read, instead of as a black band across
     # the top of the frame competing with the thing being judged.
-    (args.out / "pose-diag.json").write_text(
-        json.dumps({str(m["n"]): m for m in made}, indent=1), encoding="utf-8")
+    # One manifest per recording, merged, so processing a second video adds to
+    # the queue instead of replacing it.
+    man = args.out / "pose-diag.json"
+    all_ = json.loads(man.read_text(encoding="utf-8")) if man.exists() else {}
+    if not isinstance(all_, dict) or (all_ and "video" not in next(iter(all_.values()), {})):
+        all_ = {}          # the old shot-number-keyed format; start clean
+    for m in made:
+        all_[f"{args.video.replace('.MOV','')}-{m['n']}"] = {**m, "video": args.video}
+    man.write_text(json.dumps(all_, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":

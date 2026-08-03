@@ -42,6 +42,11 @@ RIMWATCH = {
     "IMG_2481.MOV": "out/rimwatch_IMG_2481.json",
     "IMG_2482.MOV": "out/rimwatch_IMG_2482.json",
     "IMG_2483.MOV": "out/rimwatch_IMG_2483.json",
+    # The 2026-08-01 session. Missing from this list meant the shootout silently
+    # scored no make/miss at all -- predict_make reported "no trackable shots in
+    # that video", which reads as a detection problem rather than a registry one.
+    "IMG_2528.MOV": "out/rimwatch_IMG_2528.json",
+    "IMG_2529.MOV": "out/rimwatch_IMG_2529.json",
 }
 
 # A make is a make. Everything else review distinguished (off the iron, behind the
