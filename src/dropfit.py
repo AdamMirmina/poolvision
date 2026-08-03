@@ -62,6 +62,36 @@ def water_run(mask, p, d, dist, steps=STEPS):
     return hit / steps
 
 
+def entry_direction(mask, rim):
+    """The wall's direction from the water-entry points, as a vector.
+
+    Fitted by principal direction rather than as a slope, so a near-vertical wall
+    is expressible. One rejection pass, because a swimmer standing at the wall
+    puts an entry point metres away from it.
+    """
+    import numpy as np
+    pts = waterfit.entries(mask, rim)
+    if len(pts) < 10:
+        return None
+    a = np.array(pts, dtype=float)
+    for _ in range(2):
+        mean = a.mean(0)
+        u, s, vt = np.linalg.svd(a - mean)
+        d = vt[0]
+        n = a - mean
+        # Distance from the fitted line, along its normal.
+        off = np.abs(n[:, 0] * -d[1] + n[:, 1] * d[0])
+        keep = off <= max(14.0, 2.0 * np.median(off))
+        if keep.sum() < 10:
+            break
+        a = a[keep]
+    mean = a.mean(0)
+    u, s, vt = np.linalg.svd(a - mean)
+    d = vt[0]
+    n = (d[0] ** 2 + d[1] ** 2) ** 0.5
+    return (float(d[0] / n), float(d[1] / n)) if n > 1e-9 else None
+
+
 def boundary_tangent(mask, p, rw, radius_rw=1.6):
     """Which way the water's edge runs at p: the wall's own direction.
 
@@ -118,19 +148,47 @@ def axes_for(mask, rim, vps, water):
     # The wall's own direction at p is measurable: the water boundary's local
     # tangent. The family matching it is "along", the other is "into". Only the
     # SIGN of "into" is then chosen by which way the water is.
-    tan = boundary_tangent(mask, p, rw)
+    # ALONG is the wall's own direction at this hoop, measured from the water
+    # boundary. INTO is simply its perpendicular, pointing at the water.
+    #
+    # The previous version took "into" from the water plane's second vanishing
+    # point, which is perspective-exact in principle and was a disaster in
+    # practice: at the right hoop the two axes came out 157 degrees apart, so the
+    # "square" collapsed into a thin skewed sliver lying along the wall. review,
+    # looking at it: "it visually is just not the space under the net where balls
+    # drop. i would think it would look like a square extending out from the
+    # walls directly under the rim and backboard."
+    #
+    # Review is describing the right thing, and a right angle in the image is the way
+    # to get it. Over the 1.3 rim widths this zone spans, the perspective error
+    # from treating the wall's perpendicular as a right angle is far smaller than
+    # the error from an axis pointing 67 degrees off. Exactness that degenerates
+    # is worth less than an approximation that holds its shape.
+    # The wall's direction comes from the WATER-ENTRY POINTS -- the same ones
+    # waterfit walks down columns to find -- fitted as a direction rather than a
+    # slope. Two reasons it is not the slope and not a local edge fit:
+    #
+    #   A slope cannot express a near-vertical wall, and the left hoop's is
+    #   near-vertical. That is why its slope fitted at -0.43 on one frame and
+    #   -0.73 on another and never settled.
+    #
+    #   A Canny fit in a small window around p latches onto the tile bands and
+    #   the coping instead of the waterline: it gave the right hoop 0.42 where
+    #   the entry points plainly say 0.84.
+    #
+    # A principal direction over the entry points has neither problem, and those
+    # points are already known good -- they run (3250,814) to (3730,1216) at the
+    # right hoop, which is what the waterline measurement was validated on.
+    tan = entry_direction(mask, rim)
+    if tan is None:
+        tan = boundary_tangent(mask, p, rw)
     if tan is None:
         return None
-    def closeness(u):
-        # Direction-agnostic: a tangent has no preferred sign.
-        return abs(u[0] * tan[0] + u[1] * tan[1])
-    names = sorted(fams, key=lambda k: -closeness(fams[k]))
-    along_fam, into_fam = names[0], names[1]
-    along = fams[along_fam]
-    u = fams[into_fam]
-    a = water_run(mask, p, u, PROBE * rw)
-    b = water_run(mask, p, (-u[0], -u[1]), PROBE * rw)
-    into = u if a >= b else (-u[0], -u[1])
+    along = tan if tan[1] >= 0 else (-tan[0], -tan[1])
+    perp = (-along[1], along[0])
+    a = water_run(mask, p, perp, PROBE * rw)
+    b = water_run(mask, p, (-perp[0], -perp[1]), PROBE * rw)
+    into = perp if a >= b else (-perp[0], -perp[1])
     best_score = max(a, b)
     # Point "along" the way the wall descends in the image, purely so the stored
     # numbers are comparable between hoops and sessions.

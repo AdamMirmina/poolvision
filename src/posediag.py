@@ -633,6 +633,29 @@ def main():
         all_ = {}          # the old shot-number-keyed format; start clean
     for m in made:
         all_[f"{args.video.replace('.MOV','')}-{m['n']}"] = {**m, "video": args.video}
+
+    # Stamp WHEN these frames were rendered and WHAT was in the pipeline at the
+    # time, per recording, and show it on the panel.
+    #
+    # review has been reading review as the model's current thinking, and it
+    # is routinely days behind: the code changes, the frames do not re-render
+    # until someone re-runs this, and nothing on screen says so. Review has judged
+    # shots against old drop zones and read a legend describing colors the
+    # drawing stopped using. The words: "this panel is how i'm viewing what i
+    # think is the most recent output of the model's decision making."
+    #
+    # Relying on me to mention it every turn has already failed. The manifest
+    # carries its own age instead.
+    import datetime as _dt
+    meta = all_.get("_meta") if isinstance(all_.get("_meta"), dict) else {}
+    meta[args.video] = {
+        "rendered": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "n": len(made),
+        # Named so a stale panel says which capabilities its pictures predate.
+        "includes": ["measured drop zones", "hands/release split",
+                     "window past the descent", "refined ball detections"],
+    }
+    all_["_meta"] = meta
     man.write_text(json.dumps(all_, indent=1), encoding="utf-8")
 
 

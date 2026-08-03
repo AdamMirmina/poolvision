@@ -37,10 +37,10 @@ from __future__ import annotations
 #
 # So a visibly square zone costs about 1.7 points of veto precision. Worth it,
 # and stated rather than hidden.
-HALF_W = 0.55
+HALF_W = 0.52
 # Half-depth, because the square is CENTERED on the point under the rim.
 # 0.65 keeps the same 1.30 total depth the sweep was run at.
-HALF_D = 0.65
+HALF_D = 0.55
 # Kept for the legacy quad() path used by sessions with no measured axes.
 DEPTH_LO = 0.3
 DEPTH_HI = 1.3

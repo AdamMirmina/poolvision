@@ -170,10 +170,10 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         water={"left": {"water_y_at_center": 1251.4, "slope": -0.6023},
                "right": {"water_y_at_center": 1045.9, "slope": 0.8299}},
         # Drop-zone axes on the water plane, src/dropfit.py 2026-08-03.
-        drop={'left': {'p': [938.5, 1251.4], 'along': [-0.0907, 0.9959],
-                       'into': [0.9853, -0.1711], 'center': [0.0, 0.95]},
-              'right': {'p': [3460.0, 1045.9], 'along': [0.7727, 0.6348],
-                        'into': [-0.9815, 0.1914], 'center': [0.0, 0.95]}},
+        drop={'left': {'p': [938.5, 1251.4], 'along': [-0.8362, 0.5485],
+                       'into': [0.5485, 0.8362], 'center': [0.0, 0.8]},
+              'right': {'p': [3460.0, 1045.9], 'along': [0.7684, 0.64],
+                        'into': [-0.64, 0.7684], 'center': [0.0, 0.8]}},
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
@@ -243,10 +243,14 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         # The left hoop's 'along' is nearly vertical because it stands on the
         # step-notch edge, not on a long wall -- which is also why its waterline
         # slope never fitted stably.
-        drop={'left': {'p': [981.0, 1200.3], 'along': [-0.0869, 0.9962],
-                       'into': [0.8594, 0.5113], 'center': [0.0, 0.95]},
-              'right': {'p': [3491.0, 1015.7], 'along': [0.7694, 0.6388],
-                        'into': [-0.9567, -0.2911], 'center': [0.0, 0.95]}},
+        # center = [along, into] in rim widths from p. 'along' points SOUTH
+        # (toward the camera) at both hoops, so a positive along offset moves the
+        # zone south and a negative one moves it north. review, on the render:
+        # "left too far north and right a little too far south."
+        drop={'left': {'p': [981.0, 1200.3], 'along': [-0.067, 0.9978],
+                       'into': [0.9978, 0.067], 'center': [0.95, 0.7]},
+              'right': {'p': [3491.0, 1015.7], 'along': [0.7634, 0.646],
+                        'into': [-0.8215, 0.5702], 'center': [-0.3, 0.7]}},
     )
 
 
