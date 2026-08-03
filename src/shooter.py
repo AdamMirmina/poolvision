@@ -56,6 +56,7 @@ BALL, PERSON = 32, 0
 NOSE, LEYE, REYE, LEAR, REAR, LSH, RSH, LW, RW = 0, 1, 2, 3, 4, 5, 6, 9, 10
 
 LOOKBACK_S = 1.8       # how far before the descent to search
+AFTER_S = 1.2          # and how far past it, so the ball can finish landing
 TOUCH = 0.9            # "at the hands", in shoulder-widths
 OPENED = 0.6           # how much the gap must grow to count as released
 PCW, PCH = 1500, 1100  # native-res pose window around the ball
@@ -101,6 +102,80 @@ def find_release(series):
     return best
 
 
+FINE = ROOT / "out/balltrain/ball/weights/best.pt"
+FINE_CROP = 960
+# The fine-tune never exceeds 0.25 confidence -- it is undertrained and its
+# scores are compressed, which is why its own precision reads badly. Measured, it
+# puts a box on the ball in 60 of 60 frames the stock detector misses, so the
+# useful threshold is far below any default.
+FINE_CONF = 0.05
+# How far from where the ball should be a box is still believable.
+FINE_TOL = 55.0
+_fine = [None]
+
+
+def fine_model():
+    """Loaded once, and only if the weights exist, so the pipeline still runs
+    unchanged on a machine that has never trained one."""
+    if _fine[0] is None:
+        if not FINE.exists():
+            _fine[0] = False
+        else:
+            from ultralytics import YOLO
+            _fine[0] = YOLO(str(FINE))
+    return _fine[0] or None
+
+
+def refine_ball(fr, track):
+    """Look again, in one place, at native resolution, for a ball the stock
+    detector just missed.
+
+    Every ceiling on this project traces to the same failure: the ball is lost
+    exactly at the rim. Through-the-hoop is observable on 38% of makes, the
+    overlap veto lands below chance, arcs stop before the ball lands. One cause.
+
+    The fine-tune was trained on 960px native crops, so it is poor on a whole
+    frame downscaled to 1280 where the ball is half the size it has ever seen.
+    It is a second look, not a replacement: stock runs first, and this only fires
+    where stock came up empty.
+
+    Where to look comes from the ball's own motion. Two sightings give a velocity,
+    and over one frame a thrown ball does not deviate far from it, so the crop
+    lands on the ball even mid-flight. With one sighting, the last position is
+    close enough at 60fps. With none, there is nothing to aim at and we pass.
+    """
+    m = fine_model()
+    if m is None or not track:
+        return None
+    if len(track) >= 2:
+        a, b = track[-2], track[-1]
+        dt = b["t"] - a["t"]
+        vx = (b["x"] - a["x"]) / dt if dt else 0.0
+        vy = (b["y"] - a["y"]) / dt if dt else 0.0
+        step = dt or 1 / 60
+        ex, ey = b["x"] + vx * step, b["y"] + vy * step
+    else:
+        ex, ey = track[-1]["x"], track[-1]["y"]
+
+    H, W = fr.shape[:2]
+    cx = int(min(W - FINE_CROP, max(0, ex - FINE_CROP / 2)))
+    cy = int(min(H - FINE_CROP, max(0, ey - FINE_CROP / 2)))
+    crop = fr[cy:cy + FINE_CROP, cx:cx + FINE_CROP]
+    if crop.shape[0] < 10 or crop.shape[1] < 10:
+        return None
+    r = m.predict(crop, conf=FINE_CONF, imgsz=640, verbose=False)[0]
+    best, bd = None, 1e9
+    for b in sorted(r.boxes, key=lambda b: -float(b.conf.item()))[:3]:
+        x, y = b.xywh[0].tolist()[:2]
+        gx, gy = x + cx, y + cy
+        d = ((gx - ex) ** 2 + (gy - ey) ** 2) ** 0.5
+        if d < bd:
+            best, bd = (gx, gy), d
+    # A box anywhere in a 960px crop is not evidence; one where the ball was
+    # heading is. Without this the refine pass would happily label a head.
+    return best if best and bd <= FINE_TOL else None
+
+
 def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
     """Walk the window before a descent, measuring every person against the ball.
 
@@ -114,7 +189,17 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
     was wasted on exactly that mismatch.
     """
     f_lo = max(0, int((float(t_descent) - LOOKBACK_S) * fps))
-    f_hi = int(float(t_descent) * fps)
+    # Keep watching AFTER the descent. The window used to end exactly at it,
+    # which meant the flight could never contain the ball landing -- no detector
+    # is able to fix that, and measuring one against it showed exactly what you
+    # would expect: the arcs got denser and not one of them got longer.
+    #
+    # It is the cause of both of the complaints here. "Many of the parabolas
+    # are unfinished, they don't go all the way until the ball lands", and the
+    # make that "bounced upwards first and rolled around a bit before going in --
+    # we have to keep watching after it bounces off all the way until it's no
+    # longer above the rim." A rim bounce and roll takes about a second.
+    f_hi = int((float(t_descent) + AFTER_S) * fps)
 
     # ONE seek, then read forward. The first version seeked per frame, and on a
     # 15GB 4K60 file a single CAP_PROP_POS_FRAMES seek ran past ten minutes -- at
@@ -138,6 +223,11 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
             if pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]:
                 ball = (cx, cy)
                 break
+        if ball is None:
+            # Second look before giving up on the frame. A dropped frame is not
+            # just a missing dot on the arc: pose never runs here either, so the
+            # shooter can go uncandidated in exactly the frames that matter most.
+            ball = refine_ball(fr, ball_track)
         if ball is None:
             continue
         ball_track.append({"t": t, "x": ball[0], "y": ball[1]})
@@ -266,7 +356,7 @@ def candidates(per_person):
 MIN_TRAVEL_PX = 260   # a shot crosses the frame; a ball in the water does not
 
 
-def fit_arc(ball_track):
+def fit_arc(ball_track, t_anchor=None):
     """The ball's parabola, fitted to one continuous flight rather than to noise.
 
     Fitting the raw per-frame stream produced confident nonsense. On shot 8 the
@@ -312,7 +402,14 @@ def fit_arc(ball_track):
     # even collected the rebound. The window ends at the descent this clip was
     # cut for, so the right track is the one still in the air at the end of it.
     best = None
-    t_end = max(b["t"] for b in ball_track)
+    # Anchor on the DESCENT, not on the end of the window. They used to be the
+    # same instant, so max(t) was a fine stand-in. Now that the scan keeps
+    # watching past the descent, they are not: the shot's own ball reaches the
+    # rim and stops moving, while some other ball in the pool carries on and
+    # ends later. Ranking by "closest to the end of the window" would start
+    # handing the arc to whichever ball happened to still be traveling, which
+    # is the same wrong-ball failure review already caught once.
+    t_end = float(t_anchor) if t_anchor is not None else max(b["t"] for b in ball_track)
     for pts in build_tracks(hits):
         got = arc.release(pts)
         if not got:
@@ -380,7 +477,7 @@ def _people_at(per_person, t, hands_up_only=False):
     return out
 
 
-def attribute(ball_track, per_person, rig=None, hoop=None, trace=None):
+def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent=None):
     """Who shot it, by the arc first and the release shape second.
 
     The release rule answers 5 of 17 shots on IMG_2482 and the reason is not a
@@ -404,7 +501,7 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None):
     diagnostic can say which one answered and review can judge them separately.
     """
     cands = candidates(per_person)
-    flight = fit_arc(ball_track)
+    flight = fit_arc(ball_track, t_anchor=t_descent)
     # The reasoning, recorded rather than discarded. The
     # second half is the point -- a wrong answer tells you a rule misfired, but
     # only the trail tells you a rule never ran.
@@ -631,7 +728,8 @@ def main():
         ball_track, per_person = scan_cached(args.video, j["n"], float(j["t"]),
                                              cap, fps, det, pos, pool=pool)
         pick, how, extra = attribute(ball_track, per_person,
-                                     rig=hoops.rig_for(args.video), hoop=j.get("hoop"))
+                                     rig=hoops.rig_for(args.video), hoop=j.get("hoop"),
+                                     t_descent=float(j["t"]))
         flight, cands = extra["flight"], extra["cands"]
 
         base = {"n": j["n"], "clock": j["clock"], "video": args.video,

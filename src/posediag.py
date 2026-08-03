@@ -465,7 +465,8 @@ def main():
         # asked the right question: "have you implemented the drop zone
         # heuristic and facing rules in how model is making decisions about the
         # ones you're asking me to judge."
-        pick, how, extra = shooter.attribute(ball_track, per_person, rig=rig, hoop=hoop)
+        pick, how, extra = shooter.attribute(ball_track, per_person, rig=rig, hoop=hoop,
+                                             t_descent=float(j["t"]))
         trace = list(extra.get("trace") or [])
         flight, cands = extra["flight"], extra["cands"]
         if not pick:
