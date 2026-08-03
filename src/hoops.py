@@ -143,6 +143,15 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # the waterline. Everything left of this is grass and deck.
         pool=(832, 0, 3840, 2160),
         tilt={"left": -9.0, "right": 9.0},
+        # Measured 2026-08-03 with src/waterfit.py. This session shipped with no
+        # water at all, which does not fail loudly: dropzone.quad() falls back to
+        # an axis-aligned rectangle, so every shootout shot was judged against a
+        # box that neither started at the waterline nor followed the wall. It
+        # looked like a drop zone in the review frames, which is exactly why
+        # nobody caught it -- a missing measurement is invisible unless something
+        # says the measurement is missing.
+        water={"left": {"water_y_at_center": 1251.4, "slope": -0.6023},
+               "right": {"water_y_at_center": 1045.9, "slope": 0.8299}},
     )
 # The three-point boundaries for this session, from the two blue deck posts.
 #
@@ -170,9 +179,19 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
 # pool's length.
 _S0729_QUAD = {"near": (954, 1909), "far": (1539, 224), "vp": (3839, 1286)}
 
+# Anchored at the BASE of each white pole, where it enters the blue float. Read
+# off a 5.5x zoom with a coordinate grid, per RIG-SETUP -- not off a detection
+# box, whose center sits on the blue base well left of the pole.
+#
+# The near pole was corrected 2026-08-03: it was at (2713,1756), which is 112px
+# left and 23px above where the pole actually meets the float, so the boundary
+# drew short of the post. The far pole measured (2980,1690) against a stored (2972,1700),
+# inside 12px, so that one was already right and is left alone.
+#
+# Which post serves which hoop is CROSSED: the far pole bounds the left hoop.
 _S0729_THREE = {
     "left": ((2972, 1700), (1665, -313)),
-    "right": ((2713, 1756), (1406, -257)),
+    "right": ((2825, 1779), (1406, -257)),
 }
 
 for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
@@ -185,7 +204,19 @@ for _name in ("IMG_2480.MOV", "IMG_2481.MOV", "IMG_2482.MOV", "IMG_2483.MOV"):
         three_lines=_S0729_THREE,
         tilt={"left": -9.0, "right": 9.0},
         quad=_S0729_QUAD,
-        water={"left": {"water_y_at_center": 1229.9547738693468, "slope": -0.7172290021536254}, "right": {"water_y_at_center": 981.2857142857154, "slope": 0.6796703296703296}},
+        # Re-measured 2026-08-03 with src/waterfit.py after
+        # The right intercept was 34px above the real waterline and its slope was
+        # 0.16 too shallow, so the zone leaned away from the wall and its top edge
+        # sat up on the coping.
+        #
+        # Worth recording HOW this was settled, because the first attempt to
+        # correct it by eye off a zoomed frame read the slope as 0.63 and would
+        # have made it worse. The water-entry points themselves run (3250,814) to
+        # (3730,1216) -- slope 0.838 -- and the fitted intercept lands on 1016 at
+        # the rim center, exactly what those endpoints give. Measured beats
+        # squinted, which is the whole reason RIG-SETUP says to draw it.
+        water={"left": {"water_y_at_center": 1200.3, "slope": -0.7334},
+               "right": {"water_y_at_center": 1015.7, "slope": 0.8414}},
     )
 
 

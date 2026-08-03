@@ -512,7 +512,28 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
                             f"{flight['travel']:.0f}px, residual {flight['rms']:.0f}px"))
     else:
         T.append(("flight", "no parabola fits: the ball was carried, so a dunk"))
-    T.append(("hands up", f"{len(cands)} of {len(per_person)} people released with hands above their head"))
+    # Three different facts, reported separately, because collapsing them into
+    # one number produced a line that was simply false. It counted `cands`, which
+    # requires hands up AND a detected release shape AND enough sightings, then
+    # described that count as "released with hands above their head" -- so a shot
+    # where the release shape was never found read as "0 of 2 people released with
+    # hands above their head" over a frame plainly showing the shooter with both
+    # hands overhead.
+    #
+    # Hands up is the necessary condition and the first rule in the cascade.
+    # Whether it held has to be readable on its own, separately from whether the
+    # release was located, or a failure in one is read as a finding about the
+    # other.
+    n_up = sum(1 for v in per_person.values()
+               if any(l is not None and l > 0 for _, _, l in v["series"]))
+    n_rel = sum(1 for v in per_person.values()
+                if len(v["series"]) >= 4 and find_release(v["series"]))
+    T.append(("hands up", f"{n_up} of {len(per_person)} people had both hands "
+                          f"above their head at some point"))
+    T.append(("release", f"{n_rel} of {len(per_person)} showed a release: the ball "
+                         f"at the hands, then a gap that keeps opening"))
+    T.append(("candidates raw", f"{len(cands)} had hands up AND a release, "
+                                f"which is what a candidate needs"))
 
     if flight:
         # Hands up first, everyone only if nobody had them up. Two passes rather
