@@ -30,6 +30,7 @@ const arg = (n, d) => {
 const DIR = arg("frames", path.resolve("out/diag"));
 const SITE = arg("site", path.resolve("../poolean/web/public/assets"));
 const DRY = process.argv.includes("--dry");
+const FORCE = process.argv.includes("--force");
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
 
 const token = (await (await fetch(PB + "/api/collections/_superusers/auth-with-password", {
@@ -65,7 +66,11 @@ let sent = 0, skipped = 0, missing = 0;
 for (const [key, e] of want) {
   const rec = byKey.get(key);
   if (!rec) { missing++; console.log(`  ! no record for ${key}`); continue; }
-  if (rec.diag && (!e.diag3pt || rec.diag3pt)) { skipped++; continue; }
+  // Skip only when NOT re-rendering. This 'already has one' check silently
+  // threw away 57 freshly-rendered frames carrying the corrected drop zones,
+  // because the records already held the old ones -- so a rebuild that took
+  // all night changed nothing review could see, and reported success.
+  if (!FORCE && rec.diag && (!e.diag3pt || rec.diag3pt)) { skipped++; continue; }
   if (DRY) { sent++; continue; }
   const fd = new FormData();
   for (const f of ["diag", "diag3pt"]) {
