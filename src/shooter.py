@@ -48,6 +48,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import arc
+import capfind
 import facing
 import hoops
 
@@ -77,6 +78,9 @@ PCW, PCH = 1500, 1100  # native-res pose window around the ball
 # a cap-blob finder, which does not exist yet -- caps.py only classifies a color
 # once you have one.
 POSE_CONF = 0.10
+# Lower again inside a cap crop: the head's location is already known, so a weak
+# detection there is far more likely to be the real body than a false one.
+CAP_POSE_CONF = 0.05
 
 
 def head_y(kp):
@@ -272,13 +276,57 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
         if rp.keypoints is None:
             continue
 
-        for pi in range(len(rp.boxes)):
-            bx1, by1, bx2, by2 = rp.boxes.xyxy[pi].tolist()
-            bx1, by1, bx2, by2 = bx1 + px1, by1 + py1, bx2 + px1, by2 + py1
+        # A SECOND POSE PASS, on a tight crop around any cap nobody was boxed on.
+        #
+        # Five of ten wrong attributions are the shooter never being detected, and
+        # capfind finds those players when pose cannot -- but a cap has no
+        # keypoints, and both deciding rules (hands up, facing) read keypoints. So
+        # instead of admitting an unrankable candidate, look again where the cap
+        # says a head is. Same move that took the ball detector from useless to
+        # 60-for-60: the model was never the problem, the search area was.
+        extra = []
+        boxes_now = [tuple(b) for b in rp.boxes.xyxy.tolist()]
+        boxes_now = [(a + px1, b + py1, c + px1, d + py1) for a, b, c, d in boxes_now]
+        # Named `cp`, not `cap`: `cap` is the VideoCapture this function reads
+        # from, and shadowing it turned the next frame read into an AttributeError.
+        for cp in capfind.find(fr, pool):
+            if any(bx1 <= cp["x"] <= bx2 and by1 <= cp["y"] <= by2
+                   for bx1, by1, bx2, by2 in boxes_now):
+                continue
+            cw = max(28.0, cp["w"])
+            # A body hangs BELOW its cap, so the crop starts just above the head.
+            hw, hh = int(cw * 9), int(cw * 11)
+            qx = int(max(0, min(fr.shape[1] - hw, cp["x"] - hw / 2)))
+            qy = int(max(0, min(fr.shape[0] - hh, cp["y"] - cw * 2)))
+            sub = fr[qy:qy + hh, qx:qx + hw]
+            if sub.shape[0] < 40 or sub.shape[1] < 40:
+                continue
+            r2 = pos.predict(sub, conf=CAP_POSE_CONF, verbose=False, imgsz=960)[0]
+            if r2.keypoints is None or not len(r2.boxes):
+                continue
+            # The person whose box actually contains the cap.
+            for qi in range(len(r2.boxes)):
+                ax1, ay1, ax2, ay2 = r2.boxes.xyxy[qi].tolist()
+                if not (ax1 + qx <= cp["x"] <= ax2 + qx
+                        and ay1 + qy <= cp["y"] <= ay2 + qy):
+                    continue
+                extra.append(((ax1 + qx, ay1 + qy, ax2 + qx, ay2 + qy),
+                              [[k[0] + qx, k[1] + qy, k[2]]
+                               for k in r2.keypoints.data[qi].tolist()]))
+                break
+
+        for pi in range(len(rp.boxes) + len(extra)):
+            if pi < len(rp.boxes):
+                bx1, by1, bx2, by2 = rp.boxes.xyxy[pi].tolist()
+                bx1, by1, bx2, by2 = bx1 + px1, by1 + py1, bx2 + px1, by2 + py1
+                kp_src = [[k[0] + px1, k[1] + py1, k[2]]
+                          for k in rp.keypoints.data[pi].tolist()]
+            else:
+                (bx1, by1, bx2, by2), kp_src = extra[pi - len(rp.boxes)]
             cx, cy = (bx1 + bx2) / 2, (by1 + by2) / 2
             if not (pool[0] <= cx <= pool[2] and pool[1] <= cy <= pool[3]):
                 continue
-            kp = [[k[0] + px1, k[1] + py1, k[2]] for k in rp.keypoints.data[pi].tolist()]
+            kp = kp_src
             ws = [kp[k] for k in (LW, RW) if kp[k][2] > 0.3]
             hy, sw = head_y(kp), shoulder_w(kp)
             if not ws or hy is None or sw is None:
