@@ -60,6 +60,23 @@ AFTER_S = 1.2          # and how far past it, so the ball can finish landing
 TOUCH = 0.9            # "at the hands", in shoulder-widths
 OPENED = 0.6           # how much the gap must grow to count as released
 PCW, PCH = 1500, 1100  # native-res pose window around the ball
+# Five of the ten wrong attributions review commented on are the same failure, and
+# it is not a ranking mistake -- the shooter was never boxed as a person, so no
+# rule could pick him. The words: "shooter is not recognized as a person judging
+# by the boxes", "partially submerged but cap and body and arm still visible",
+# "green was behind white and not recognized as a person despite cap visible",
+# "shooter was in deepend and not recognized as a person".
+#
+# A half-submerged swimmer at the far end is a hard detection, and 0.20 was
+# discarding them. Lowered here only -- this window is already cropped tight
+# around the ball, so the extra candidates are people genuinely near the shot,
+# and the rules below still have to choose between them.
+#
+# The real fix is the cap: review twice notes it is visible when the body is not,
+# which makes it a better person-detector than pose at this distance. That needs
+# a cap-blob finder, which does not exist yet -- caps.py only classifies a color
+# once you have one.
+POSE_CONF = 0.10
 
 
 def head_y(kp):
@@ -251,7 +268,7 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
         px1 = int(max(0, min(fr.shape[1] - PCW, ball[0] - PCW / 2)))
         py1 = int(max(0, min(fr.shape[0] - PCH, ball[1] - PCH / 2)))
         rp = pos.predict(fr[py1:py1 + PCH, px1:px1 + PCW],
-                         conf=0.20, verbose=False, imgsz=1280)[0]
+                         conf=POSE_CONF, verbose=False, imgsz=1280)[0]
         if rp.keypoints is None:
             continue
 
@@ -460,6 +477,20 @@ def _people_at(per_person, t, hands_up_only=False):
             continue
         if hands_up_only and not (s.get("lift") or 0) > 0:
             continue
+        # Square on AND wrists down is an elimination, not a low score.
+        #
+        # review on two separate wrong picks: "the person selected is square and
+        # wrists down", and "should have gotten yellow because of wrists being
+        # above, and facing hooop". Both times the right shooter WAS in frame and
+        # was out-ranked by someone who cannot have taken the shot. The original
+        # framing of hands-up applies to facing too -- a shooter always turns
+        # toward the hoop and raises the ball, so someone doing neither is not a
+        # weaker candidate, they are not a candidate.
+        kp = s.get("kp")
+        if kp:
+            side, strength = facing.side(kp)
+            if side == 0 and not (s.get("lift") or 0) > 0:
+                continue
         # The ball has to have come near them at some point in the window.
         #
         #

@@ -28,7 +28,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops import rig_for  # noqa: E402
 
+from pathlib import Path as _P
+ROOT = _P(__file__).resolve().parent.parent
 SPORTS_BALL = 32
+FINE_CONF = 0.05   # the fine-tune's scores never exceed 0.25
 
 
 
@@ -38,6 +41,8 @@ def parse_args():
     p.add_argument("--from", dest="t0", type=float, default=280.0)
     p.add_argument("--to", dest="t1", type=float, default=520.0)
     p.add_argument("--conf", type=float, default=0.10)
+    p.add_argument("--fine", action="store_true",
+                   help="second look with the fine-tuned ball detector")
     p.add_argument("--imgsz", type=int, default=640)
     p.add_argument("--step", type=int, default=1, help="frame stride")
     p.add_argument("--model", default="yolo11s.pt")
@@ -67,6 +72,14 @@ def main():
         rig = hoops.Rig(rims=rig.rims, crops=rig.crops, pool=rig.pool,
                         dets={k: hoops._crop_around(v, px, py) for k, v in rig.rims.items()})
     model = YOLO(args.model)
+    fine = None
+    if args.fine:
+        fw = ROOT / 'out/balltrain/ball/weights/best.pt'
+        if fw.exists():
+            fine = YOLO(str(fw))
+            print(f'second look: {fw.name}')
+        else:
+            print('no fine-tuned weights; stock only')
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     start, end = int(args.t0 * fps), int(args.t1 * fps)
@@ -116,6 +129,22 @@ def main():
                 canvas[offs[name]:offs[name] + (y2 - y1), 0:x2 - x1] = fr[y1:y2, x1:x2]
             r = model.predict(canvas, conf=args.conf, verbose=False,
                               classes=[SPORTS_BALL], imgsz=args.imgsz)[0]
+            # Second look with the fine-tune where stock found nothing.
+            #
+            # Four of the twelve shots marked as missed had NO ball sighting
+            # at either rim, and three more had one or two -- no rule change can
+            # reach those, the ball simply was not seen. The fine-tune recovers 60
+            # of 60 frames the stock detector misses, and this canvas is the
+            # native-resolution rim crop it was trained on, so it is on home
+            # ground here rather than fighting a downscaled full frame.
+            #
+            # It has one class, so the COCO filter above would drop everything;
+            # and its scores never exceed 0.25, so it needs its own low threshold.
+            if fine is not None and (r.boxes is None or not len(r.boxes)):
+                rf = fine.predict(canvas, conf=FINE_CONF, verbose=False,
+                                  imgsz=args.imgsz)[0]
+                if rf.boxes is not None and len(rf.boxes):
+                    r = rf
             if r.boxes is not None and len(r.boxes):
                 for bx in r.boxes:
                     bx1, by1, bx2, by2 = bx.xyxy[0].tolist()
