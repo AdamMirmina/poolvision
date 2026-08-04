@@ -56,6 +56,12 @@ def parse_args():
 
 JITTER_PX = 25      # detector wobble tolerated without calling it a direction change
 MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
+# ...or, for a dunk, enough consecutive sightings at the hoop to mean the ball
+# was really brought there. Set from the marked tape: the two clear dunks it
+# missed ran 16 and 13 detections; the false positive review flagged at 4:10
+# (ball never left his hand) is not near a hoop at all, so this does not
+# readmit it.
+CARRY_DETS = 5
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -118,7 +124,24 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
             rw = max(1.0, rim[2] - rim[0])
             kept = []
             for r in runs:
-                if len(r) < min_dets or (r[-1]["y"] - r[0]["y"]) < MIN_DROP_PX:
+                drop = r[-1]["y"] - r[0]["y"]
+                # A DUNK never falls far. The ball is carried to the rim, so a
+                # gate built on "how far did it drop" cannot see one -- and on a
+                # low pool hoop that is a huge slice of the game.
+                #
+                # Measured against the marking of five minutes of game footage:
+                # 4:39 had 29 detections and a 16-long run ending beside the net,
+                # rejected for dropping 120px instead of 150. 6:49 had 19, a
+                # 13-long run, ending 1.0 rim widths away, rejected for 53px. Both
+                # obvious dunks to a person watching.
+                #
+                # So there are two ways to be a shot now: fall a long way into the
+                # rim, or be SEEN AT the rim persistently. A pass does neither --
+                # it crosses the frame without lingering at a hoop.
+                carried = len(r) >= CARRY_DETS
+                if len(r) < min_dets and not carried:
+                    continue
+                if drop < MIN_DROP_PX and not carried:
                     continue
                 near = min(((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5
                            for p in r[-3:]) / rw
