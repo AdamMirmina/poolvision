@@ -81,6 +81,9 @@ POSE_CONF = 0.10
 # Lower again inside a cap crop: the head's location is already known, so a weak
 # detection there is far more likely to be the real body than a false one.
 CAP_POSE_CONF = 0.05
+# How near the ball a cap must be, in cap-widths, to be worth looking at.
+# Generous: a shooter's head at release is within a body-length of the ball.
+CAP_NEAR_BALL = 6.0
 
 
 def head_y(kp):
@@ -292,6 +295,15 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
         for cp in capfind.find(fr, pool):
             if any(bx1 <= cp["x"] <= bx2 and by1 <= cp["y"] <= by2
                    for bx1, by1, bx2, by2 in boxes_now):
+                continue
+            # Only a cap NEAR THE BALL is worth a second pose pass.
+            #
+            # This is the own observation used as an optimisation: "if they're
+            # submerged the ball would be near their head anyway." A cap across
+            # the pool cannot be the shooter of this flight, so running pose on it
+            # is pure cost -- and it was most of the cost. Seven caps over ~54
+            # frames is why a shot went from seconds to minutes.
+            if _d((cp["x"], cp["y"]), ball) > CAP_NEAR_BALL * max(28.0, cp["w"]):
                 continue
             cw = max(28.0, cp["w"])
             # A body hangs BELOW its cap, so the crop starts just above the head.
