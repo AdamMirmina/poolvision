@@ -38,6 +38,8 @@ MAX_ASPECT = 2.4
 WATER_H = (86, 112)
 MIN_SAT = 60           # pink tops out near 87, so this cannot go much higher
 MIN_VAL = 70
+# How much of the patch below a blob must be water for it to be a head.
+WATER_BELOW = 0.25
 
 
 def find(frame, pool=None):
@@ -63,6 +65,14 @@ def find(frame, pool=None):
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
+    # A cap is on a swimmer, and a swimmer is IN the water. Everything this
+    # found outside the pool -- foliage along the fence, deck stains, a pool
+    # float, the backboard -- is the right color and the right size and is not a
+    # person. Requiring water underneath removes them without touching the caps,
+    # because a head always has water below it and a leaf never does.
+    water = ((h >= WATER_H[0]) & (h <= WATER_H[1]) & (s >= 50)).astype(np.uint8)
+    water = cv2.morphologyEx(water, cv2.MORPH_CLOSE, np.ones((31, 31), np.uint8))
+
     n, lab, stats, cent = cv2.connectedComponentsWithStats(mask, 8)
     out = []
     for i in range(1, n):
@@ -75,6 +85,15 @@ def find(frame, pool=None):
         if asp > MAX_ASPECT or area / float(bw * bh) < MIN_FILL:
             continue
         cx, cy = cent[i]
+        # Look just below the blob, a couple of cap-heights down, for water.
+        span = int(max(bw, bh))
+        y0 = min(frame.shape[0] - 1, y + bh + span // 2)
+        y1b = min(frame.shape[0], y0 + span * 3)
+        x0 = max(0, int(cx) - span)
+        x1b = min(frame.shape[1], int(cx) + span)
+        below = water[y0:y1b, x0:x1b]
+        if below.size == 0 or below.mean() < WATER_BELOW:
+            continue
         sub = lab[y:y + bh, x:x + bw] == i
         out.append({
             "x": float(cx), "y": float(cy), "w": float(max(bw, bh)),
