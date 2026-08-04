@@ -460,7 +460,7 @@ def main():
     for j in shots:
         n = int(j["n"])
         hoop = j.get("hoop", "left")
-        ball_track, per_person = shooter.scan_cached(args.video, n, float(j["t"]),
+        ball_track, per_person, cap_track = shooter.scan_cached(args.video, n, float(j["t"]),
                                                      cap, fps, det, pos, pool=pool)
         # The rig and the hoop, so the facing tiebreak actually runs. Without
         # them attribute() silently skipped it, which meant the frames review has
@@ -469,7 +469,7 @@ def main():
         # heuristic and facing rules in how model is making decisions about the
         # ones you're asking me to judge."
         pick, how, extra = shooter.attribute(ball_track, per_person, rig=rig, hoop=hoop,
-                                             t_descent=float(j["t"]))
+                                             t_descent=float(j["t"]), caps=cap_track)
         trace = list(extra.get("trace") or [])
         flight, cands = extra["flight"], extra["cands"]
         if not pick:

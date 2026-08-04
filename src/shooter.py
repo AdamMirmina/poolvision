@@ -84,6 +84,8 @@ CAP_POSE_CONF = 0.05
 # How near the ball a cap must be, in cap-widths, to be worth looking at.
 # Generous: a shooter's head at release is within a body-length of the ball.
 CAP_NEAR_BALL = 6.0
+# ...and no nearer than this, or it IS the ball.
+CAP_IS_BALL = 1.6
 
 
 def head_y(kp):
@@ -232,7 +234,7 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
     import cv2
     cap.set(cv2.CAP_PROP_POS_FRAMES, f_lo)
 
-    ball_track, per_person = [], {}
+    ball_track, per_person, cap_track = [], {}, []
     for f in range(f_lo, f_hi + 1):
         ok, fr = cap.read()
         if not ok:
@@ -303,8 +305,19 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
             # the pool cannot be the shooter of this flight, so running pose on it
             # is pure cost -- and it was most of the cost. Seven caps over ~54
             # frames is why a shot went from seconds to minutes.
+            # The BALL is a saturated round blob too, so capfind finds it. Every
+            # "cap" recorded on the first run was the ball itself, 1-13px from
+            # the ball position. Exclude anything sitting on it.
+            if _d((cp["x"], cp["y"]), ball) < CAP_IS_BALL * max(28.0, cp["w"]):
+                continue
             if _d((cp["x"], cp["y"]), ball) > CAP_NEAR_BALL * max(28.0, cp["w"]):
                 continue
+            # Kept whether or not pose then finds a body, because a cap with NO
+            # body is exactly the case attribution needs: a player pose cannot
+            # see. See STATE.md, "cap fallback for shooters pose cannot see".
+            cap_track.append({"t": t, "x": cp["x"], "y": cp["y"], "w": cp["w"],
+                              "hue": cp["hue"], "sat": cp["sat"], "val": cp["val"],
+                              "gap": _d((cp["x"], cp["y"]), ball)})
             cw = max(28.0, cp["w"])
             # A body hangs BELOW its cap, so the crop starts just above the head.
             hw, hh = int(cw * 9), int(cw * 11)
@@ -361,7 +374,7 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
             v["series"].append((t, gap, lift))
             v["at"][round(t, 3)] = {"box": (bx1, by1, bx2, by2), "kp": kp,
                                     "gap": gap, "lift": lift, "ball": ball}
-    return ball_track, per_person
+    return ball_track, per_person, cap_track
 
 
 SCANS = ROOT / "out/scans"
@@ -386,11 +399,11 @@ def scan_cached(video, n, t_descent, cap, fps, det, pos, pool=(1150, 250, 3500, 
                         "last": tuple(v["last"]),
                         "at": {float(kk): vv for kk, vv in v["at"].items()}}
                for k, v in d["per_person"].items()}
-        return d["ball_track"], per
-    ball_track, per_person = scan(cap, fps, t_descent, det, pos, pool=pool)
-    f.write_text(json.dumps({"ball_track": ball_track, "per_person": per_person},
-                            default=list), encoding="utf-8")
-    return ball_track, per_person
+        return d["ball_track"], per, d.get("caps") or []
+    ball_track, per_person, cap_track = scan(cap, fps, t_descent, det, pos, pool=pool)
+    f.write_text(json.dumps({"ball_track": ball_track, "per_person": per_person,
+                             "caps": cap_track}, default=list), encoding="utf-8")
+    return ball_track, per_person, cap_track
 
 
 def candidates(per_person):
@@ -506,6 +519,7 @@ def fit_arc(ball_track, t_anchor=None):
 
 
 REACH_PX = 110      # how close the arc's origin must come to count as "their hands"
+CAP_REACH = 5.0     # ...or, for a cap, how many cap-widths from the release
 NEVER_HELD = 4.0    # if the ball never came this close, in shoulder-widths, they did not shoot
 ADMIT_PX = 260      # wider admission, so facing has something to arbitrate
 FACE_TOWARD = 0.20  # decisively facing the hoop
@@ -568,7 +582,8 @@ def _people_at(per_person, t, hands_up_only=False):
     return out
 
 
-def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent=None):
+def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent=None,
+              caps=None):
     """Who shot it, by the arc first and the release shape second.
 
     The release rule answers 5 of 17 shots on IMG_2482 and the reason is not a
@@ -593,6 +608,38 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
     """
     cands = candidates(per_person)
     flight = fit_arc(ball_track, t_anchor=t_descent)
+
+    def cap_fallback(origin, t_rel, best_wrist_d):
+        """The shooter pose could not see, from the cap at the release.
+
+        the rule, and both halves are load-bearing:
+
+          1. the flight traces back to no concrete WRISTS, and
+          2. there is a cap right at the release point.
+
+        (1) is what stops this ever making a working pick worse -- when pose sees
+        the shooter, this never runs. (2) is what makes it specific rather than a
+        guess. Either alone is unsafe: the first admits anybody, the second lets a
+        bystander's cap outrank a properly detected shooter.
+
+        It needs no hands-up test, and that is the physics rather than a
+        shortcut: "if they're submerged the ball would be near their head anyway."
+        A player hidden enough that pose fails cannot be shooting from far below
+        the surface, so cap-to-release is a BETTER measure for these candidates
+        than wrist-to-release, not a degraded one.
+        """
+        if not caps or origin is None:
+            return None
+        if best_wrist_d is not None and best_wrist_d <= REACH_PX:
+            return None                     # condition 1 fails: wrists explain it
+        near = [c for c in caps if abs(c["t"] - t_rel) <= 0.35]
+        if not near:
+            return None
+        c = min(near, key=lambda z: _d((z["x"], z["y"]), origin))
+        d = _d((c["x"], c["y"]), origin)
+        if d > CAP_REACH * max(28.0, c["w"]):
+            return None                     # condition 2 fails: no cap at the release
+        return c, d
     # The reasoning, recorded rather than discarded. The
     # second half is the point -- a wrong answer tells you a rule misfired, but
     # only the trail tells you a rule never ran.
@@ -780,6 +827,23 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
                         break          # past them and moving away; stop
                 if best_t < t and best_d is not None and best_d <= REACH_PX * 1.6:
                     t, (x, y) = best_t, arc.at(flight["fit"], best_t)
+            # Before accepting a pick whose wrists never actually reached the
+            # throw, check whether a cap did. This is the ONLY place the fallback
+            # can fire, and it cannot displace a pick that passed the reach test.
+            fb = cap_fallback((x, y), t, d)
+            if fb:
+                c, cd = fb
+                T.append(("cap fallback",
+                          f"no wrists within {REACH_PX}px of the release (nearest "
+                          f"{d:.0f}px), but a cap sits {cd:.0f}px from it"))
+                T.append(("chosen", "the capped player pose never boxed, "
+                                    f"{cd:.0f}px from where the throw began"))
+                return ({"person": "cap", "t": round(t, 2), "dist": round(cd, 1),
+                         "gap": None, "lift": None, "cap": c,
+                         "box": (c["x"] - c["w"] * 1.2, c["y"] - c["w"] * 0.6,
+                                 c["x"] + c["w"] * 1.2, c["y"] + c["w"] * 4.0),
+                         "kp": None},
+                        "cap", {"flight": flight, "cands": cands, "trace": T})
             snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))
             snap = per_person[pid]["at"][snaps[0]] if snaps else {}
             T.append(("chosen", f"person {pid}, nearest the start of the throw at {d:.0f}px"))
@@ -837,11 +901,11 @@ def main():
     pool = hoops.rig_for(args.video).pool
     rows = []
     for j in shots:
-        ball_track, per_person = scan_cached(args.video, j["n"], float(j["t"]),
+        ball_track, per_person, cap_track = scan_cached(args.video, j["n"], float(j["t"]),
                                              cap, fps, det, pos, pool=pool)
         pick, how, extra = attribute(ball_track, per_person,
                                      rig=hoops.rig_for(args.video), hoop=j.get("hoop"),
-                                     t_descent=float(j["t"]))
+                                     t_descent=float(j["t"]), caps=cap_track)
         flight, cands = extra["flight"], extra["cands"]
 
         base = {"n": j["n"], "clock": j["clock"], "video": args.video,
