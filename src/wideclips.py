@@ -48,7 +48,17 @@ def main():
     import cv2
     import imageio_ffmpeg
 
-    attributed = json.loads((ROOT / f"out/attribute_{args.video}.json").read_text(encoding="utf-8"))
+    # shooter.py writes out/shooter_<video>.json; this looked for
+    # out/attribute_<video>.json. Six and a half hours of attribution ran to
+    # completion and then this step died on FileNotFoundError, so no clips
+    # were cut and nothing said why until the log was read.
+    src = ROOT / f"out/shooter_{args.video}.json"
+    if not src.exists():
+        src = ROOT / f"out/attribute_{args.video}.json"   # older runs
+    if not src.exists():
+        print(f"no attribution for {args.video}: run src/shooter.py first")
+        return 1
+    attributed = json.loads(src.read_text(encoding="utf-8"))
     wanted = {int(r["n"]) for r in attributed if r.get("stage") == "attributed" and r.get("n") is not None}
     judged = {int(j["n"]): j for j in json.loads(((ROOT / "labels/allshots.json" if (ROOT / "labels/allshots.json").exists() else ROOT / "labels/judged.json")).read_text(encoding="utf-8"))
               if j["video"] == args.video + ".MOV"}

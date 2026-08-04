@@ -193,7 +193,8 @@ def crop_to_action(fr, people, flight, ball_track, t_rel, pad=180, pool=None):
 
 
 def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
-         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None, water=None, water_mask=None):
+         hoop_center=None, rim=None, rim_tilt=0.0, ball_now=None, water=None, water_mask=None,
+         drop=None, zkey=None):
     import cv2
 
     dx, dy = off
@@ -326,8 +327,7 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         # appears in here did not go through the hoop, which is the strongest
         # make/miss signal found so far -- right 51 times out of 54.
         import dropzone
-        q = dropzone.zone(rim, water, (rig.drop or {}).get(hoop),
-                          key=f"{args.video}#{hoop}")
+        q = dropzone.zone(rim, water, drop, key=zkey)
         if water_mask is not None:
             q = dropzone.clip_to_water(q, water_mask, (
                 sum(a for a, _ in q) / 4 + dx, sum(b for _, b in q) / 4 + dy))
@@ -592,7 +592,9 @@ def main():
         stem = f"pose-diag-{args.video.replace('.MOV','')}-{n}"
         out = args.out / f"{stem}.jpg"
         cv2.imwrite(str(out), draw(sub.copy(), people, pick, flight, ball_track, pick["t"], off, rim=rr,
-                             rim_tilt=tilt, ball_now=ball_now),
+                             rim_tilt=tilt, ball_now=ball_now,
+                             drop=(rig.drop or {}).get(hoop),
+                             zkey=f"{args.video}#{hoop}"),
                     [cv2.IMWRITE_JPEG_QUALITY, 86])
         # Measured in THIS frame, not read from a stored guess. The posts
         # stand in floats that drift, so one anchor is right at one moment

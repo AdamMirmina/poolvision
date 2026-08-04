@@ -39,7 +39,14 @@ if (mode === "push") {
   for (const s of seed) {
     const key = `${s.video}#${s.hoop}`;
     const cur = have.get(key);
-    const body = { video: s.video, hoop: s.hoop, alongOff: s.alongOff, intoOff: s.intoOff };
+    const body = { video: s.video, hoop: s.hoop, alongOff: s.alongOff, intoOff: s.intoOff,
+                   // The polygon itself, in full-frame coords, so review can draw
+                   // the CURRENT zone over any frame or clip regardless of when that
+                   // media was rendered. Baking it into the image meant review could only
+                   // ever see where the zone was hours ago: "how can i make any sort of
+                   // claim about this should have been seen in the zone if i don't know
+                   // where they are."
+                   poly: s.poly, net: s.net, rim: s.rim };
     const r = cur
       ? await fetch(`${PB}/api/collections/vision_zones/records/${cur.id}`,
           { method: "PATCH", headers: { Authorization: token, "Content-Type": "application/json" }, body: JSON.stringify(body) })
