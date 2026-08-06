@@ -62,6 +62,8 @@ MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
 # (ball never left his hand) is not near a hoop at all, so this does not
 # readmit it.
 CARRY_DETS = 5
+# ...and no more than this, or it is a person holding the ball, not a dunk.
+CARRY_MAX = 20
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -138,7 +140,16 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 # So there are two ways to be a shot now: fall a long way into the
                 # rim, or be SEEN AT the rim persistently. A pass does neither --
                 # it crosses the frame without lingering at a hoop.
-                carried = len(r) >= CARRY_DETS
+                # A dunk is BRIEF. the second tape showed what the bare
+                # count admits: 50 consecutive sightings while a player carried
+                # the ball out of the pool, and 12 more climbing back in, both
+                # called shots. "it caught blue getting back in the pool with the
+                # ball in hand."
+                #
+                # The ball at the rim on a dunk lasts a moment. A person holding
+                # it lasts as long as they like, so an upper bound separates them
+                # where a lower bound alone cannot.
+                carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
                     continue
                 if drop < MIN_DROP_PX and not carried:
