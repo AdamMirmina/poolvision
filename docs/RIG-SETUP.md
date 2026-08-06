@@ -68,10 +68,26 @@ Two different jobs, and they were one box until they were measured apart.
 - `crops` are wide (rim + ~430x400) and are what a person watches. A clip cropped
   tight on the rim shows a ball appearing and disappearing with no shooter.
 
-**Settled question, do not re-litigate:** a taller detector crop does NOT help.
-Same video, same minute, tight against one twice as tall: 233 detections against
-229, and the far hoop collapsed from 21 to 3 because a taller canvas is
-downscaled harder for the same imgsz.
+**That "settled question" was wrong, and the way it was wrong is the lesson.**
+
+This section used to say: "a taller detector crop does NOT help. Same video, same
+minute, tight against one twice as tall: 233 detections against 229." That was
+one minute of one video, and it got written down as settled and told future
+sessions not to re-litigate it. It then cost the entire 2026-08-01 session.
+
+Measured properly, against the marked tape: IMG_2482 (crop 2.0-2.6 rim-widths
+of margin) gets 565 ball sightings a MINUTE. IMG_2529 (crop 1.2-1.5) gets 54.
+Ten times fewer. Four of the five real shots he marked had ZERO sightings, and
+the only two things the detector did see were a player holding the ball still at
+the rim -- which the shot logic then called shots.
+
+A ball descending into the hoop crosses far more than 180px of vertical space. A
+tight crop looks at the rim and not at the approach, so it sees the balls that
+stay put and misses the ones in flight, which is exactly backwards.
+
+**Use 430x400 of padding, matching the 07-29 rig.** And treat any measurement
+taken on a single minute as a hint, never as settled -- especially one that
+tells a future session not to check.
 
 ## 4. Scene box (`pool`)
 
