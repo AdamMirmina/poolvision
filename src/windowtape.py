@@ -123,7 +123,11 @@ def main():
 
         for mt, mh in marks:
             if 0 <= t - mt <= 2.0:
-                cv2.putText(im, f"hand: real shot here ({mh})", (16, 92),
+                # "YOU MARKED" not "hand:". The old wording read as the model
+                # naming the shooter -- review saw it and reported "they all said
+                # review although some were another player", and I spent a search looking for
+                # a name the pipeline does not have. It was this caption.
+                cv2.putText(im, f"YOU MARKED A REAL SHOT HERE ({mh} hoop)", (16, 92),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.72, MISS, 2, cv2.LINE_AA)
         proc.stdin.write(im.tobytes())
         wrote += 1
