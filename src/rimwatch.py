@@ -31,7 +31,9 @@ from hoops import rig_for  # noqa: E402
 from pathlib import Path as _P
 ROOT = _P(__file__).resolve().parent.parent
 SPORTS_BALL = 32
-FINE_CONF = 0.05   # the fine-tune's scores never exceed 0.25
+FINE_CONF = 0.05
+# How many consecutive decode failures before a scan is declared incomplete.
+MAX_BAD_GRABS = 90   # the fine-tune's scores never exceed 0.25
 
 
 
@@ -122,6 +124,8 @@ def main():
 
     hits = {k: [] for k in det}
     f = start
+    bad = 0
+    covered = 0
     t0 = time.time()
     while f < end:
         # grab() advances the decoder without paying for the color conversion
@@ -131,12 +135,31 @@ def main():
         # but stamped them with strided frame numbers -- every timestamp came out
         # scaled by the stride. Harmless at the old default of 1, and it would
         # have quietly wrecked a whole night at 2.
+        # A single decode hiccup used to END THE SCAN, and the script then wrote
+        # its partial results and reported success. On IMG_2529 that stopped at
+        # 8:40 of a 15:08 video: two of the five shots marked by hand were
+        # never scanned at all, and I reported them as detector misses and quoted
+        # a recall figure computed over 58% of the recording.
+        #
+        # Tolerate a short run of bad grabs -- long 4K files hiccup -- and count
+        # what actually got looked at so a truncated scan cannot pass as a
+        # complete one.
         if not cap.grab():
-            break
+            bad += 1
+            if bad > MAX_BAD_GRABS:
+                log(f"decoder gave up at frame {f} ({f/fps:.0f}s) after "
+                    f"{bad} consecutive failures -- SCAN IS INCOMPLETE")
+                break
+            f += 1
+            continue
+        bad = 0
         if (f - start) % args.step == 0:
             ok, fr = cap.retrieve()
             if not ok:
-                break
+                bad += 1
+                f += 1
+                continue
+            covered += 1
             canvas[:] = 0
             for name in order:
                 x1, y1, x2, y2 = det[name]
@@ -195,6 +218,12 @@ def main():
     }, indent=1), encoding="utf-8")
     for k, v in hits.items():
         log(f"{k}: {len(v)} detections near the rim")
+    # Say what fraction of the video was actually looked at. A scan that stops
+    # early is otherwise indistinguishable from one that found nothing there.
+    want = max(1, (end - start) // max(1, args.step))
+    pct = 100.0 * covered / want
+    log(f"scanned {covered} of {want} frames ({pct:.0f}%)"
+        + ("" if pct > 99 else "   <-- INCOMPLETE, results cover only part of the video"))
     log(f"wrote {args.out}")
 
 
