@@ -43,7 +43,21 @@ def parse_args():
     p.add_argument("--conf", type=float, default=0.10)
     p.add_argument("--fine", action="store_true",
                    help="second look with the fine-tuned ball detector")
-    p.add_argument("--imgsz", type=int, default=640)
+    # 1600. Measured on the minute marked by hand, at the five shots he
+    # confirmed are real, with the widened crop:
+    #
+    #   imgsz  640    256 sightings in the window, 1 of his 5 shots seen
+    #   imgsz  960    306 sightings, 5 of 5
+    #   imgsz 1600    858 sightings, 5 of 5
+    #
+    # The crop and this are ONE tradeoff. A wider crop sees the ball's approach
+    # and is then downscaled harder for the same imgsz, so the ball arrives
+    # smaller -- which is why widening the crop alone barely helped, and why the
+    # original "tight crop is better" measurement was reading the resolution half
+    # of a tradeoff while missing the coverage half.
+    #
+    # 640 had never been compared against anything.
+    p.add_argument("--imgsz", type=int, default=1600)
     p.add_argument("--step", type=int, default=1, help="frame stride")
     p.add_argument("--model", default="yolo11s.pt")
     p.add_argument("--out", type=Path, default=Path("out/rimwatch.json"))
