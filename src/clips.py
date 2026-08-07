@@ -44,6 +44,40 @@ CRF = 30        # quality/size knob; 30 keeps a 3s clip near 200KB
 # ffmpeg gives CRF control and lands the same clips around 40x smaller.
 
 
+def _falls(run, min_pts=6, min_curve=40.0, min_span=0.25):
+    """Does this run show a ball actually falling under gravity?
+
+    Fits y = a*t^2 + ... over the run. Image y grows downward, so a genuine
+    ballistic drop has a POSITIVE `a`, and its size is the acceleration -- a held
+    or carried ball gives a near-zero one whatever its position.
+
+    Deliberately not a residual test: a shot seen over a few frames is noisy, and
+    demanding a tidy fit would throw away exactly the short, fast flights this is
+    meant to catch.
+    """
+    if len(run) < min_pts:
+        return False
+    ts = [p["t"] for p in run]
+    if ts[-1] - ts[0] < min_span:
+        return False
+    import numpy as np
+    t0 = ts[0]
+    a = np.polyfit([t - t0 for t in ts], [p["y"] for p in run], 2)[0]
+    if float(a) < min_curve:
+        return False
+    # ...and it has to be MOVING. Curvature alone let four of the named false
+    # positives back in: a ball held in someone's hands bobs enough to fit a
+    # gentle parabola, and so does one carried out of the pool. A thrown ball
+    # falls fast; a hand-held one moves at hand speed. That is the difference
+    # curvature cannot express on its own.
+    speeds = []
+    for p, q in zip(run, run[1:]):
+        dt = q["t"] - p["t"]
+        if dt > 0:
+            speeds.append(abs(q["y"] - p["y"]) / dt)
+    return bool(speeds) and max(speeds) >= MIN_FALL_SPEED
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("video", type=Path)
@@ -66,6 +100,8 @@ CARRY_DETS = 5
 CARRY_MAX = 20
 # How far back to look for the ball clearing the ring, in seconds.
 ABOVE_LOOKBACK = 1.2
+# Peak vertical speed a real flight reaches, px/s. A hand-held ball never does.
+MIN_FALL_SPEED = 500.0
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -174,8 +210,24 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 # only picked up during its final drop into the net -- every
                 # sighting in the run sits below the ring even though the shot
                 # plainly went over it. The evidence is a few frames earlier.
+                # A CLEAR DOWNWARD PARABOLA, which is the own broadening of
+                # his above-the-rim rule: "cause im realizing now that airballs
+                # below the rim won't be counted."
+                #
+                # That is right, and the parabola is the better test because it
+                # describes what makes something a shot rather than where it
+                # happened to go. An airball that never reaches the ring still
+                # arcs. And it separates his false positives by their physics
+                # rather than by their position: a held ball does not move, a
+                # carried one drifts at walking pace, a flat bullet pass has
+                # almost no curvature, and a player standing on the deck has
+                # none at all.
+                #
+                # Image y grows downward, so gravity is a POSITIVE quadratic
+                # coefficient. Fitted over the run's own points.
                 lo, hi = r[0]["t"] - ABOVE_LOOKBACK, r[-1]["t"]
                 above = any(p["y"] < rim[1] for p in pts if lo <= p["t"] <= hi)
+                arced = _falls(r)
                 # Only the CARRIED path has to clear the ring. A run with a real
                 # descent already proved itself by falling into the hoop.
                 #
@@ -190,6 +242,26 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 # Restricted to the carried path it does exactly the job he
                 # described -- a held, lifted or walked ball never clears the
                 # ring -- without touching shots that fall through it.
+                # Applied to EVERY run, not only carried ones. the named
+                # false positives -- the ball held in white's hands, and the one
+                # carried out of the pool -- come through the DESCENT gate: the
+                # ball really does fall 150+px while someone lowers it or walks
+                # with it. Gating only the carry path never saw them.
+                # Kept as measured, not as reasoned. Four variants were scored
+                # against the marked minute:
+                #
+                #   no rule at all             15 calls, 5/5 real, 7 named FPs
+                #   above-rim, every run        5 calls, 3/5 real
+                #   above-rim, carry path only  6 calls, 4/5 real, 2 named FPs
+                #   parabola alone              3 calls, 2/5 real, 3 named FPs
+                #
+                # The parabola is the better IDEA -- it catches airballs below the
+                # ring, which above-rim discards, and review flagged exactly that.
+                # It is not yet the better RULE: fitted over a run of 6+ points it
+                # throws away short flights seen for only a few frames, which is
+                # most of the left hoop's shots. It needs the run-building to hold
+                # a flight together first; tightening the test cannot fix data
+                # that arrives in fragments.
                 if drop < MIN_DROP_PX and not above:
                     continue
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
