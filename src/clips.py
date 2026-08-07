@@ -64,6 +64,8 @@ MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
 CARRY_DETS = 5
 # ...and no more than this, or it is a person holding the ball, not a dunk.
 CARRY_MAX = 20
+# How far back to look for the ball clearing the ring, in seconds.
+ABOVE_LOOKBACK = 1.2
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -149,6 +151,47 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 # The ball at the rim on a dunk lasts a moment. A person holding
                 # it lasts as long as they like, so an upper bound separates them
                 # where a lower bound alone cannot.
+                # THE RULE: the ball has to be seen ABOVE THE RIM at some
+                # point, or it is not a shot. The words: "it was a bullet with
+                # almost no arc and way below the rim. that would be the
+                # equivalent of a pass. maybe say shots have to be seen above the
+                # rim to be called shots?"
+                #
+                # This one condition kills every false positive he named, and
+                # they were five different-looking events: the ball held in
+                # white's hands (8:10-8:12), raised and lowered without release
+                # (8:42), carried out of the pool (8:22), a player standing on the
+                # concrete holding it (8:26), and the flat pass (8:55). None of
+                # them put the ball above the ring.
+                #
+                # It also fixes the dunk path without weakening it: a dunk brings
+                # the ball ABOVE the rim and pushes it down, while a player
+                # holding one at chest height beside the hoop never does. That is
+                # the difference the run-length bounds could not express.
+                # Checked across the WHOLE window around this descent, not just
+                # the run's own points. Applied to the run alone it killed two of
+                # the five marked shots, both at the left hoop, where the ball is
+                # only picked up during its final drop into the net -- every
+                # sighting in the run sits below the ring even though the shot
+                # plainly went over it. The evidence is a few frames earlier.
+                lo, hi = r[0]["t"] - ABOVE_LOOKBACK, r[-1]["t"]
+                above = any(p["y"] < rim[1] for p in pts if lo <= p["t"] <= hi)
+                # Only the CARRIED path has to clear the ring. A run with a real
+                # descent already proved itself by falling into the hoop.
+                #
+                # Applied to everything it cost two of the five marked shots,
+                # both at the left hoop, where the ball is only picked up on its
+                # final drop -- so nothing in the window sits above the ring even
+                # though the shot plainly went over it. Image height is also not
+                # world height: a player on the deck BEHIND the right hoop appears
+                # above it while standing at ground level, which is why his 8:21
+                # false positive survived the rule.
+                #
+                # Restricted to the carried path it does exactly the job he
+                # described -- a held, lifted or walked ball never clears the
+                # ring -- without touching shots that fall through it.
+                if drop < MIN_DROP_PX and not above:
+                    continue
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
                     continue
