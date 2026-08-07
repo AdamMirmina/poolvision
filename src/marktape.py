@@ -30,11 +30,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def shot_times(video):
-    """When the pipeline says a shot happened, from whatever it has produced."""
+def shot_times(video, clips=""):
+    """When the pipeline says a shot happened, from whatever it has produced.
+
+    `clips` names the run explicitly. Without it this guesses a path from the
+    video name, which silently reads a STALE run from an earlier build -- the
+    tape then shows old calls while claiming to show the current model, and
+    there is nothing on screen that says so.
+    """
     stem = Path(video).stem
     out = []
-    idx = ROOT / f"out/clips_{stem}/index.json"
+    idx = Path(clips) / "index.json" if clips else ROOT / f"out/clips_{stem}/index.json"
+    if clips and not idx.exists():
+        raise SystemExit(f"no {idx} -- refusing to fall back to a different run")
     if idx.exists():
         for r in json.loads(idx.read_text(encoding="utf-8")):
             t = r.get("t") if isinstance(r, dict) else None
@@ -58,6 +66,7 @@ def main():
     ap.add_argument("--start", type=float, default=140.0)
     ap.add_argument("--dur", type=float, default=300.0)
     ap.add_argument("--out", default="")
+    ap.add_argument("--clips", default="", help="clips dir for THIS run")
     args = ap.parse_args()
 
     import imageio_ffmpeg
@@ -67,7 +76,7 @@ def main():
         print(f"no {src}")
         return 1
 
-    shots = [(t, h) for t, h in shot_times(args.video)
+    shots = [(t, h) for t, h in shot_times(args.video, args.clips)
              if args.start <= t < args.start + args.dur]
     print(f"{args.video} {args.start:.0f}s..{args.start + args.dur:.0f}s: "
           f"the model calls {len(shots)} shots")
