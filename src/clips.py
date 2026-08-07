@@ -44,6 +44,58 @@ CRF = 30        # quality/size knob; 30 keeps a 3s clip near 200KB
 # ffmpeg gives CRF control and lands the same clips around 40x smaller.
 
 
+_POSE = [None]
+
+
+def _people_at(video, t, imgsz=1600):
+    """Person boxes in the frame at `t`. Loaded lazily, cached per frame."""
+    from ultralytics import YOLO
+    import rigcheck
+    from pathlib import Path
+    if _POSE[0] is None:
+        _POSE[0] = YOLO(str(Path(__file__).resolve().parent.parent / "yolo11s-pose.pt"))
+    fr = rigcheck.grab(Path(video), t)
+    if fr is None:
+        return []
+    r = _POSE[0].predict(fr, conf=0.15, verbose=False, imgsz=imgsz, classes=[0])[0]
+    return r.boxes.xyxy.tolist() if r.boxes is not None else []
+
+
+def _separates(video, run, rim, sample=5):
+    """Does the ball ever get AWAY from everyone during this run?
+
+    the rule was that the false positives were all "in someone's hand"
+    -- held by white, carried out of the pool, held by a player standing on the
+    concrete. A shot separates from every person by definition; a held ball never
+    does.
+
+    This is a different axis from everything else tried, and it matters because
+    the others all failed on measured data: apparent ball size does not separate
+    (67/84/100px for real shots against 62/59/76px for false ones), over-water
+    does not either (real shots read 0% because a ball high above the pool
+    projects past the pool edge in the image), and above-the-rim admits anyone
+    standing behind the hoop.
+
+    DUNKS still count, which is the same clause. A dunk does
+    separate -- the ball leaves the hands at the ring and drops through the net --
+    so it satisfies this rule for the right reason. What it excludes is a ball
+    held at chest height that never leaves anyone.
+    """
+    if len(run) < 3:
+        return False, 0.0
+    idx = list(range(0, len(run), max(1, len(run) // sample)))
+    best = 0.0
+    for i in idx:
+        p = run[i]
+        boxes = _people_at(video, p["t"])
+        if not boxes:
+            continue
+        d = min(((p["x"] - max(b[0], min(p["x"], b[2]))) ** 2
+                 + (p["y"] - max(b[1], min(p["y"], b[3]))) ** 2) ** 0.5 for b in boxes)
+        best = max(best, d / max(24.0, p.get("w") or 60.0))
+    return best >= SEP_BALL_WIDTHS, best
+
+
 def _falls(run, min_pts=6, min_curve=40.0, min_span=0.25):
     """Does this run show a ball actually falling under gravity?
 
@@ -102,6 +154,10 @@ CARRY_MAX = 20
 ABOVE_LOOKBACK = 1.2
 # Peak vertical speed a real flight reaches, px/s. A hand-held ball never does.
 MIN_FALL_SPEED = 500.0
+# How far the ball must get from every person, in ball-widths, to count as a
+# throw rather than something someone is holding. Measured: real shots reach 7.4
+# and 15.2; every false positive review flagged sits at 0.
+SEP_BALL_WIDTHS = 3.0
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -110,7 +166,7 @@ BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same sh
 RIG_RIMS: dict = {}
 
 
-def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
+def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
     """One shot per clip, found by its DESCENT.
 
     Two rules were tried and both fail, for opposite reasons. Splitting on gaps
@@ -262,8 +318,38 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int):
                 # most of the left hoop's shots. It needs the run-building to hold
                 # a flight together first; tightening the test cannot fix data
                 # that arrives in fragments.
-                if drop < MIN_DROP_PX and not above:
-                    continue
+                # the separation rule, applied to EVERY run. The named false
+                # positives came through the DESCENT gate as often as the carry
+                # gate -- a ball genuinely falls 150+px while someone lowers it --
+                # so gating one path was never going to catch them.
+                # TWO rules, because they catch different things and the feedback contained both:
+                #
+                #   SEPARATION -- the ball must get away from every person. Kills
+                #   the ball held in white's hands, carried out of the pool, or
+                #   held by someone standing on the concrete. A dunk passes for
+                #   the right reason: it separates at the ring.
+                #
+                #   ARC or ABOVE THE RING -- the ball must behave like a shot.
+                #   Kills the flat bullet pass, which separates perfectly well and
+                #   is still not a shot: "way below the rim... the equivalent of a
+                #   pass."
+                #
+                # Measured separately: separation alone gives 9 calls and all five
+                # of his real shots; above-rim alone gives 6 and loses one.
+                # Kept SEPARATION ALONE, on the numbers rather than on taste.
+                # Adding "must also arc or clear the ring" removes one false
+                # positive and costs a real shot (8:35, whose run has no arc fit,
+                # no descent and nothing above the ring -- it is seen for too few
+                # frames to prove anything about its shape). Recall is worth more
+                # here: a false call is a clip a reviewer dismisses in two seconds, a
+                # missed shot is invisible.
+                #
+                #   separation alone   9 calls, 5/5 real, 4 named FPs
+                #   both rules         5 calls, 4/5 real, 3 named FPs
+                if video is not None:
+                    sep_ok, _ = _separates(str(video), r, rim)
+                    if not sep_ok:
+                        continue
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
                     continue
@@ -351,7 +437,7 @@ def main():
     global RIG_RIMS
     RIG_RIMS = rig.rims
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
-    events = cluster(rw["hits"], args.gap, args.min_dets)
+    events = cluster(rw["hits"], args.gap, args.min_dets, video=args.video)
     bounds = windows(events)
     print(f"{len(events)} shots (one descent each)")
 
