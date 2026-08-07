@@ -40,8 +40,19 @@ MAX_BAD_GRABS = 90   # the fine-tune's scores never exceed 0.25
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("video", type=Path)
-    p.add_argument("--from", dest="t0", type=float, default=280.0)
-    p.add_argument("--to", dest="t1", type=float, default=520.0)
+    # THE WHOLE VIDEO by default. These used to default to 280-520s, a window
+    # left over from an early experiment, so every run invoked without --from/--to
+    # scanned four minutes of a fifteen-minute recording and reported success.
+    #
+    # I then diagnosed the missing 60% as a decoder failure and wrote a fix for a
+    # bug that did not exist. The tool had printed "rimwatch 280s-520s" as its
+    # FIRST LINE on every run, and I never read it -- I read the summary at the
+    # end instead, which is exactly the habit that made the other four failures
+    # today survive.
+    #
+    # 0 means "to the end".
+    p.add_argument("--from", dest="t0", type=float, default=0.0)
+    p.add_argument("--to", dest="t1", type=float, default=0.0)
     p.add_argument("--conf", type=float, default=0.10)
     p.add_argument("--fine", action="store_true",
                    help="second look with the fine-tuned ball detector")
@@ -98,9 +109,13 @@ def main():
             print('no fine-tuned weights; stock only')
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    start, end = int(args.t0 * fps), int(args.t1 * fps)
+    # 0 means the end of the file, so the default really is "all of it".
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    start = int(args.t0 * fps)
+    end = int(args.t1 * fps) if args.t1 > 0 else total
     cap.set(cv2.CAP_PROP_POS_FRAMES, start)
-    log(f"rimwatch {args.t0:.0f}s-{args.t1:.0f}s ({end-start} frames), conf {args.conf}, imgsz {args.imgsz}")
+    log(f"rimwatch {start/fps:.0f}s-{end/fps:.0f}s of {total/fps:.0f}s "
+        f"({end-start} frames), conf {args.conf}, imgsz {args.imgsz}")
 
     # Both hoops in ONE inference, stacked into a single canvas.
     #
