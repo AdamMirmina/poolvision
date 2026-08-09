@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hoops import rig_for  # noqa: E402
+import dropzone  # noqa: E402
 from parked import drop_parked  # noqa: E402
 from tracks import build_tracks  # noqa: E402
 
@@ -158,12 +159,42 @@ MIN_FALL_SPEED = 500.0
 # throw rather than something someone is holding. Measured: real shots reach 7.4
 # and 15.2; every false positive review flagged sits at 0.
 SEP_BALL_WIDTHS = 3.0
+# The drop zone widened a little. It was measured for where a ball LANDS, and the
+# question here is whether the ball ever passed through the space under the hoop,
+# which is a slightly bigger region once the ball's own radius and tracking slop
+# are allowed for. Measured across five known events: at 1.15 the real shot that
+# lands on the zone's corner comes in, and the deck ball stays out until 1.8.
+ZONE_GROW = 1.3
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
 
 
 RIG_RIMS: dict = {}
+
+
+EXPLAIN = []          # (t, hoop, reason, detail) for every run a gate rejected
+RIG_DROP: dict = {}   # per-hoop drop-plane calibration, set alongside RIG_RIMS
+_ZONES: dict = {}
+
+
+def _dropzone(hoop, rim):
+    """The widened drop zone for a hoop, or None if this rig has no plane fit."""
+    if hoop in _ZONES:
+        return _ZONES[hoop]
+    d = (RIG_DROP or {}).get(hoop)
+    poly = None
+    if d:
+        base = dropzone.zone(rim, drop=d, key=hoop)
+        cx = sum(p[0] for p in base) / len(base)
+        cy = sum(p[1] for p in base) / len(base)
+        poly = [(cx + (x - cx) * ZONE_GROW, cy + (y - cy) * ZONE_GROW) for x, y in base]
+    _ZONES[hoop] = poly
+    return poly
+
+
+def _why(hoop, r, reason, detail=""):
+    EXPLAIN.append((r[0]["t"], hoop, reason, detail))
 
 
 def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
@@ -346,18 +377,73 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 #
                 #   separation alone   9 calls, 5/5 real, 4 named FPs
                 #   both rules         5 calls, 4/5 real, 3 named FPs
-                if video is not None:
-                    sep_ok, _ = _separates(str(video), r, rim)
-                    if not sep_ok:
+                # THE BALL HAS TO REACH THE SPACE UNDER THE HOOP.
+                #
+                # This replaces the separation rule, which was wrong about the one
+                # case review explicitly warned about. A dunk NEVER separates: the
+                # ball is in the player's hands the whole way, measured at 0.0 ball
+                # widths for the entire run of his 11:00 dunk, so the rule threw it
+                # away by construction.
+                #
+                # It also passed everything separation is blind to. All three false
+                # calls on the fresh tape were a loose ball with nobody near it:
+                # "this was a ball rolling across the deck, not a shot. then one player
+                # pcked it up and it ocunted as another shot. then one player got back in
+                # the poool and it ocunted another."
+                #
+                # Height cannot fix that, and this is the third measurement saying
+                # so. The deck ball sits 1.87 rim-widths ABOVE the ring in the
+                # image while the real dunk never rises above it at all, because
+                # the deck is further from the camera. It even passes over the ring
+                # more squarely (0.00 rim-widths) than the real arcing shot (0.11).
+                #
+                # The drop zone is the one piece of geometry that knows about
+                # depth, because it is a quad on the WATER PLANE rather than a box
+                # in the image. tuned by eye and signed off Measured
+                # over five known events, sightings inside the zone:
+                #
+                #   ball rolling on the deck      0
+                #   player picking it up          0
+                #   player getting back in        0
+                #   the 11:00 dunk               64
+                #   the 13:23 arc                 7
+                #
+                # Nothing on the deck can enter it at any dilation short of 1.8.
+                if _dropzone(hoop, rim) is not None:
+                    poly = _dropzone(hoop, rim)
+                    if not any(dropzone.contains(poly, p["x"], p["y"]) for p in r):
+                        _why(hoop, r, "never reached the space under the hoop",
+                             f"{len(r)} points, none inside the drop zone")
                         continue
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
+                    _why(hoop, r, "too few detections",
+                         f"{len(r)} points, needs {min_dets} or {CARRY_DETS}-{CARRY_MAX}")
                     continue
-                if drop < MIN_DROP_PX and not carried:
+                # How far it fell, measured over the WINDOW rather than only
+                # within the run. A track breaks at the moment the ball hits the
+                # water -- the jump is too big to associate -- so the run left
+                # behind is just the ball drifting on the surface. the 13:23
+                # shot measured -15px that way, meaning it ended HIGHER than it
+                # started, while the real flight from y=779 down to y=1424 sat in
+                # the sightings one second earlier under a different track id.
+                #
+                # Taking the highest point seen in the lookback gives the fall the
+                # shot actually made. It is safe here only because the drop zone
+                # has already ruled out everything on the deck; on its own a
+                # window-wide maximum would happily pair an unrelated high
+                # sighting with an unrelated low one.
+                top = min((p["y"] for p in hits if lo <= p["t"] <= hi), default=r[0]["y"])
+                fell = max(drop, r[-1]["y"] - top)
+                if fell < MIN_DROP_PX and not carried:
+                    _why(hoop, r, "did not fall far enough",
+                         f"{fell:.0f}px over the window, needs {MIN_DROP_PX}")
                     continue
                 near = min(((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5
                            for p in r[-3:]) / rw
                 if near > END_NEAR_RIM:
+                    _why(hoop, r, "ended too far from the rim",
+                         f"{near:.1f} rim widths, needs under {END_NEAR_RIM}")
                     continue
                 kept.append(r)
 
@@ -434,8 +520,9 @@ def main():
     args = parse_args()
 
     rig = rig_for(args.video)
-    global RIG_RIMS
+    global RIG_RIMS, RIG_DROP
     RIG_RIMS = rig.rims
+    RIG_DROP = rig.drop or {}
     rw = json.loads(args.rimwatch.read_text(encoding="utf-8"))
     events = cluster(rw["hits"], args.gap, args.min_dets, video=args.video)
     bounds = windows(events)
