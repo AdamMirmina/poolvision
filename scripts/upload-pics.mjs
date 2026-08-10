@@ -19,7 +19,7 @@ const arg = (n, d) => {
 };
 const TITLE = arg("title", "");
 const CAPTION = arg("caption", "");
-const files = process.argv.slice(2).filter((a) => /\.(jpe?g|png|webp)$/i.test(a));
+const files = process.argv.slice(2).filter((a) => /\.(jpe?g|png|webp|mp4|mov)$/i.test(a));
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
 
 if (!files.length) { console.error("no images given"); process.exit(1); }
@@ -52,8 +52,11 @@ fd.append("title", TITLE);
 fd.append("caption", CAPTION);
 fd.append("active", "true");
 for (const f of files) {
-  const type = /\.png$/i.test(f) ? "image/png" : /\.webp$/i.test(f) ? "image/webp" : "image/jpeg";
-  fd.append("images", new Blob([fs.readFileSync(f)], { type }), path.basename(f));
+  const vid = /\.(mp4|mov)$/i.test(f);
+  const type = vid ? "video/mp4"
+    : /\.png$/i.test(f) ? "image/png"
+    : /\.webp$/i.test(f) ? "image/webp" : "image/jpeg";
+  fd.append(vid ? "clips" : "images", new Blob([fs.readFileSync(f)], { type }), path.basename(f));
 }
 
 const res = await fetch(PB + "/api/collections/vision_pics/records", {
@@ -69,8 +72,12 @@ if (!res.ok || !rec.id) {
 // can render them -- that check has been skipped before and cost a round trip.
 const back = await (await fetch(PB + "/api/collections/vision_pics/records/" + rec.id,
   { headers: A })).json();
-console.log(`\nuploaded ${(back.images || []).length} image(s) as "${TITLE}"`);
-for (const img of back.images || []) {
+// Stills and clips both, or the summary reports zero while three files sit on
+// the panel -- which it did, and the only reason it was caught was reading the
+// record back instead of believing the line.
+const all = [...(back.images || []), ...(back.clips || [])];
+console.log(`\nuploaded ${all.length} file(s) as "${TITLE}"`);
+for (const img of all) {
   const url = `${PB}/api/files/vision_pics/${back.id}/${img}`;
   const head = await fetch(url, { method: "HEAD" });
   console.log(`  ${head.status === 200 ? "ok " : "BAD"} ${img}`);
