@@ -43,6 +43,10 @@ CASES = [
     ("2529 the deck, no shots",       "IMG_2529.MOV", ["out/fine_fp.json"],    "answerkey_IMG_2529.json"),
     ("2529 one player's dunk",               "IMG_2529.MOV", ["out/fine_dunk.json"],  "answerkey_IMG_2529.json"),
     ("2529 the backboard arc",        "IMG_2529.MOV", ["out/fine_arc.json"],   "answerkey_IMG_2529.json"),
+    # The one that matters most. Different camera, five players, real game play,
+    # and nothing in the pipeline has ever seen it. Everything above shares one
+    # afternoon and one rig.
+    ("2482 different camera (HELD OUT)", "IMG_2482.MOV", ["out/key_2482.json"], "answerkey_IMG_2482.json"),
 ]
 
 TOL = 4.0
