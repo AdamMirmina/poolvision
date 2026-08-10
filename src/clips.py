@@ -198,7 +198,7 @@ SAME_BALL = 1.2
 # long way has gone into the pool, and a ball rolling on a flat deck has nowhere
 # to fall.
 RING_NEAR = 0.6      # rim widths from the ring center, at closest approach
-RING_FALL_PX = 600   # and it must drop this far afterwards
+RING_FALL_PX = 450   # and it must drop this far afterwards
 # Two calls at one hoop this close together are one shot seen twice. A real
 # second attempt needs the ball to come back out and be shot again.
 MERGE_CALLS_S = 2.5
@@ -573,8 +573,29 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
     # clips covering the same instant look identical to them -- the marked shot hit exactly
     # this ("36 and 37 are definitely the same"). One clip covering both is
     # honest; two near-duplicates waste a decision and pollute the labels.
+    # Overlap is not the only way to get two clips of one shot. The fine-tuned
+    # detector is sensitive enough to hold several tracks through a single
+    # flight, and runs from DIFFERENT tracks never meet the per-track merge
+    # above, so they arrive here as separate events that merely sit close in
+    # time. Scored against the answer key, three of four apparently-false calls were
+    # this: 16:36 one second from his 16:35, 18:19 and 20:01 landing on the same
+    # second as his marks. Not false positives at all, the same shot counted
+    # twice.
+    #
+    # So near-in-time counts as well as overlapping. A genuine second attempt
+    # needs the ball to come back out and be shot again, which does not happen
+    # inside MERGE_CALLS_S.
     merged = []
     for hoop, dets in events:
+        # Compared on START times, not end-to-start. Merging against the end
+        # lets an event grow every time it absorbs one, and a long event then
+        # keeps swallowing the next shot along -- that ate the 20:01 make
+        # outright, turning a duplicate fix into a lost shot. Starts cannot
+        # snowball.
+        if (merged and merged[-1][0] == hoop
+                and dets[0]["t"] - merged[-1][1][0]["t"] <= MERGE_CALLS_S):
+            merged[-1] = (hoop, merged[-1][1] + dets)
+            continue
         if merged and merged[-1][0] == hoop and dets[0]["t"] <= merged[-1][1][-1]["t"]:
             merged[-1] = (hoop, sorted(merged[-1][1] + dets, key=lambda d: d["t"]))
         else:
