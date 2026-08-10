@@ -391,8 +391,17 @@ def scan_cached(video, n, t_descent, cap, fps, det, pos, pool=(1150, 250, 3500, 
     second, so the gates can be chosen by measuring against the notes rather
     than by argument.
     """
+    # Keyed by the DESCENT TIME, not the shot number. The number is just this
+    # run's position in a list, so re-detecting the footage renumbers everything
+    # and every shot silently reads a cached scan of a different moment. That
+    # happened: a list produced on 2026-08-10 read scans cached on 2026-08-04,
+    # and shot #1 at 15:06 came back with an arc fitted at t=360.96s. Nothing
+    # errored, 17 of 22 were "attributed", and the numbers looked ordinary.
+    #
+    # A time identifies a shot across any renumbering. Rounded to a tenth so a
+    # re-run that shifts a call by a frame still hits its cache.
     SCANS.mkdir(parents=True, exist_ok=True)
-    f = SCANS / f"{video.replace('.MOV','')}_{n}.json"
+    f = SCANS / f"{video.replace('.MOV','')}_t{t_descent:.1f}.json"
     if f.exists():
         d = json.loads(f.read_text(encoding="utf-8"))
         per = {int(k): {"series": [tuple(s) for s in v["series"]],
@@ -865,11 +874,19 @@ def parse_args():
     p.add_argument("--video", default="IMG_2482.MOV")
     p.add_argument("--shots", type=int, default=200)
     p.add_argument("--skip", type=int, default=0)
+    p.add_argument("--shots-file", default="", help="attribute these calls instead of the label file")
     return p.parse_args()
 
 
-def load_shots(video, limit=200, skip=0):
-    src = ROOT / "labels/allshots.json"
+def load_shots(video, limit=200, skip=0, src=None):
+    """Shots to attribute.
+
+    Defaults to the judged label file, but takes an explicit list so attribution
+    can be run over the MODEL's own calls. Scoring it against the named
+    shooters only means anything if the shots being attributed are the ones the
+    pipeline actually produced, not a hand-picked set.
+    """
+    src = Path(src) if src else ROOT / "labels/allshots.json"
     shots = [j for j in json.loads(src.read_text(encoding="utf-8"))
              if j["video"] == video and j.get("label") != "notshot"]
     shots.sort(key=lambda j: j["t"])
@@ -884,7 +901,7 @@ def main():
     import cv2
     from ultralytics import YOLO
 
-    shots = load_shots(args.video, args.shots, args.skip)
+    shots = load_shots(args.video, args.shots, args.skip, args.shots_file or None)
     cap = cv2.VideoCapture(str(ROOT / "footage" / args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     det = YOLO("yolo11s.pt")
