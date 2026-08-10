@@ -202,6 +202,21 @@ RING_FALL_PX = 450   # and it must drop this far afterwards
 # Two calls at one hoop this close together are one shot seen twice. A real
 # second attempt needs the ball to come back out and be shot again.
 MERGE_CALLS_S = 2.5
+# GRAVITY. A ball in free flight accelerates; a ball someone is carrying moves at
+# wading speed. This is the one discriminator on the project that is physics
+# rather than geometry, and it separates the case geometry cannot touch: the 10:40, "one player got back in the pool with it", where the ball really does descend
+# through the drop zone under the left hoop, because the person holding it is
+# walking down the steps.
+#
+# Peak downward speed, px/s, measured over consecutive sightings:
+#
+#   carrying the ball in      837        the 18:25 miss   1990
+#   the 11:00 dunk           1587        the 20:10 make   2070
+#   the 13:23 arc            2490        the 15:57 make   2610
+#
+# 1200 sits nearly midway, with the slowest real shot 32% above it and the
+# fastest carry 30% below.
+MIN_PEAK_FALL = 1200.0
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -529,6 +544,16 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # has already ruled out everything on the deck; on its own a
                 # window-wide maximum would happily pair an unrelated high
                 # sighting with an unrelated low one.
+                # A carried ball can satisfy every geometric test -- it passes
+                # under the ring, it enters the zone, it descends -- and only
+                # fails on speed.
+                speeds = [(b["y"] - a["y"]) / (b["t"] - a["t"])
+                          for a, b in zip(r, r[1:]) if b["t"] > a["t"]]
+                if not speeds or max(speeds) < MIN_PEAK_FALL:
+                    _why(hoop, r, "never fell at the speed of a dropped ball",
+                         f"peak {max(speeds) if speeds else 0:.0f} px/s, "
+                         f"needs {MIN_PEAK_FALL:.0f}")
+                    continue
                 top = min((p["y"] for p in hits if lo <= p["t"] <= hi), default=r[0]["y"])
                 fell = max(drop, r[-1]["y"] - top)
                 if fell < MIN_DROP_PX and not carried:
