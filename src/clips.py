@@ -505,7 +505,8 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 if _dropzone(hoop, rim) is not None:
                     poly = _dropzone(hoop, rim)
                     in_zone = any(dropzone.contains(poly, p["x"], p["y"]) for p in r)
-                    if not in_zone and not _through_the_ring(r, rim):
+                    through = _through_the_ring(r, rim)
+                    if not in_zone and not through:
                         _why(hoop, r, "never reached the space under the hoop",
                              f"{len(r)} points, none inside the drop zone, "
                              f"and it did not pass the ring and fall away")
@@ -534,9 +535,19 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                     _why(hoop, r, "did not fall far enough",
                          f"{fell:.0f}px over the window, needs {MIN_DROP_PX}")
                     continue
+                # Where the descent ENDS is not evidence for a miss, and this
+                # gate says it is. the 18:11 passed the drop zone with 45
+                # sightings inside it and was killed here for ending 3.8 rim
+                # widths out -- which is what a carom does. It is the same wrong
+                # assumption as the zone, that a shot finishes at the hoop, in a
+                # second place.
+                #
+                # A run that already proved itself by passing the ring and
+                # falling into the pool has established which hoop it belongs to.
+                # Where it came to rest afterwards adds nothing.
                 near = min(((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5
                            for p in r[-3:]) / rw
-                if near > END_NEAR_RIM:
+                if near > END_NEAR_RIM and not through:
                     _why(hoop, r, "ended too far from the rim",
                          f"{near:.1f} rim widths, needs under {END_NEAR_RIM}")
                     continue
