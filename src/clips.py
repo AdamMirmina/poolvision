@@ -165,6 +165,14 @@ SEP_BALL_WIDTHS = 3.0
 # are allowed for. Measured across five known events: at 1.15 the real shot that
 # lands on the zone's corner comes in, and the deck ball stays out until 1.8.
 ZONE_GROW = 1.3
+# The fine-tuned detector fires several boxes for ONE ball in a single frame --
+# five within 25px at t=804.03. Left alone they become parallel tracks of the
+# same flight, and one shot is reported as three or four. Boxes in the same frame
+# whose centers are within this many ball widths are the same ball.
+SAME_BALL = 1.2
+# Two calls at one hoop this close together are one shot seen twice. A real
+# second attempt needs the ball to come back out and be shot again.
+MERGE_CALLS_S = 2.5
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -176,6 +184,34 @@ RIG_RIMS: dict = {}
 EXPLAIN = []          # (t, hoop, reason, detail) for every run a gate rejected
 RIG_DROP: dict = {}   # per-hoop drop-plane calibration, set alongside RIG_RIMS
 _ZONES: dict = {}
+
+
+def _one_box_per_ball(hits):
+    """Collapse duplicate boxes for the same ball in the same frame.
+
+    The stock COCO detector rarely double-fires, so this was not needed while it
+    was the only source. The fine-tune does it constantly -- it is far more
+    sensitive, which is the point, and the cost is several overlapping boxes per
+    ball. Without this the tracker builds one track per box and a single dunk is
+    reported four times.
+
+    Keeps the highest-confidence box of each cluster, since that is the one whose
+    center is most likely to be on the ball rather than on its wake or shadow.
+    """
+    by_t = {}
+    for h in hits:
+        by_t.setdefault(round(h["t"], 3), []).append(h)
+    out = []
+    for _, group in by_t.items():
+        kept = []
+        for h in sorted(group, key=lambda z: -z["conf"]):
+            w = max(1.0, h.get("w", 60.0))
+            if any(((h["x"] - k["x"]) ** 2 + (h["y"] - k["y"]) ** 2) ** 0.5
+                   < SAME_BALL * w for k in kept):
+                continue
+            kept.append(h)
+        out.extend(kept)
+    return sorted(out, key=lambda z: z["t"])
 
 
 def _dropzone(hoop, rim):
@@ -222,6 +258,7 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
     for hoop, hits in hits_by_hoop.items():
         # A ball at rest is detected in most frames and would otherwise dominate
         # everything downstream -- see parked.py for the two times this bit.
+        hits = _one_box_per_ball(hits)
         hits, dropped = drop_parked(hits)
         if dropped:
             print(f"  {hoop}: dropped {dropped} detections of ball(s) sitting still")
