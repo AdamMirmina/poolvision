@@ -64,6 +64,14 @@ later about which session a file is.
   is in pixels, so it is one more thing to re-verify.
 - **Copy the files off the phone the same day.** A full phone at the next session
   is a session lost.
+- **A phone that fills up mid-recording writes a broken file, and it is
+  recoverable.** IMG_2770 arrived with its index unreadable at the end and looked
+  like 25 minutes of lost footage. The video data was entirely intact; only the
+  index was bad. `ffmpeg -err_detect ignore_err -i broken.MOV -c copy -movflags
+  +faststart fixed.MOV` rebuilt it and recovered all 92,213 frames. Do that
+  BEFORE concluding anything is lost, and check the size on the phone against the
+  size on disk first -- if they match, the transfer was fine and the file itself
+  is the problem, so re-copying will never help.
 - **Consent, every time.** This is a camera on a party full of real people
   running body detection. Everyone in the water agrees first, the footage stays
   local, and it is deleted after processing. Non-negotiable, and it is in

@@ -34,7 +34,12 @@ def check(name):
     return True, f"{name}: OK  {w}x{h} @ {fps:.0f}fps  {n} frames  {n/fps/60:.1f} min  {gb:.1f} GB"
 
 ok_all = True
-for name in (sys.argv[1:] or ["IMG_2528.MOV", "IMG_2529.MOV"]):
+# Default to EVERY video present, not two names from one session. The old
+# default silently checked the wrong files after a new transfer: two freshly
+# copied 16GB videos were verified by a run that reported OK for a different
+# pair entirely, which is the stale-artifact failure this project keeps hitting.
+_all = sorted(p.name for p in (ROOT / "footage").glob("*.MOV")) if (ROOT / "footage").exists() else []
+for name in (sys.argv[1:] or _all):
     good, msg = check(name)
     print(msg)
     ok_all = ok_all and good

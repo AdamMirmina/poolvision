@@ -25,7 +25,7 @@
 # against null. Renamed so the two can't collide.
 $AlbumName = "202608_a"
 $Dest  = "C:\dev\poolvision\footage"
-$Names = @("IMG_2528.MOV", "IMG_2529.MOV")
+$Names = @("IMG_2770.MOV")
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
