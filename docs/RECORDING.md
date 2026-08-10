@@ -69,6 +69,30 @@ later about which session a file is.
   local, and it is deleted after processing. Non-negotiable, and it is in
   `AGENTS.md` for the same reason.
 
+## If someone does not want their face used
+
+Three different asks, three different answers. Do not blur one and call the
+others handled.
+
+**"I don't want to be recorded."** Then they are not recorded. There is no
+technical substitute for that. Pointing the camera at someone because the faces
+come out blurry is not consent.
+
+**"I'll play, but I don't want my face stored or shared."** `src/anon.py` blurs
+every face before a frame leaves the laptop. This costs NOTHING: the pipeline has
+never used a face. Shot detection uses the ball and the hoop geometry; attribution
+uses cap color and wrist position from pose keypoints. Verified on a five-player
+frame -- all five faces pixelated, all five caps still perfectly readable.
+
+Run it on anything that leaves the machine: a still opened in a chat (which goes
+to Anthropic as an image), a clip uploaded to poolean (which lands on the VPS and
+is reachable by URL), anything sent to anyone. The raw video never leaves,
+because YOLO and ffmpeg run locally.
+
+**"I don't want to be identified by the model."** Simplest of the three: don't
+wear a cap. Attribution is keyed entirely on cap color, so no cap means no
+identity, and shot detection carries on unaffected.
+
 ## What NOT to worry about
 
 Do not try to make the play tidy for the camera, and do not stage shots. The
