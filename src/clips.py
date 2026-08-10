@@ -184,6 +184,21 @@ ZONE_GROW = 2.0
 # same flight, and one shot is reported as three or four. Boxes in the same frame
 # whose centers are within this many ball widths are the same ball.
 SAME_BALL = 1.2
+# A MISS, measured off two of them rather than imagined. The ball does NOT bounce
+# back up -- that was the first guess and it caught nothing while adding three
+# false calls. It arrives at the ring RISING, passes within a fifth of a rim
+# width of the center, and then falls away sideways in one continuous descent:
+# y 455 to 1123 at 18:11, y 624 to 1111 at 18:25, ending nearly four rim widths
+# out. It leaves the space under the hoop, which is exactly why the zone gate
+# cannot see it.
+#
+# Proximity alone is not enough, because the deck ball passes over the ring too
+# (measured at 0.00 rim widths -- the deck sits behind the hoop in the image). The
+# pairing is what separates them: a ball that passes the ring AND then falls a
+# long way has gone into the pool, and a ball rolling on a flat deck has nowhere
+# to fall.
+RING_NEAR = 0.6      # rim widths from the ring center, at closest approach
+RING_FALL_PX = 600   # and it must drop this far afterwards
 # Two calls at one hoop this close together are one shot seen twice. A real
 # second attempt needs the ball to come back out and be shot again.
 MERGE_CALLS_S = 2.5
@@ -198,6 +213,33 @@ RIG_RIMS: dict = {}
 EXPLAIN = []          # (t, hoop, reason, detail) for every run a gate rejected
 RIG_DROP: dict = {}   # per-hoop drop-plane calibration, set alongside RIG_RIMS
 _ZONES: dict = {}
+
+
+def _through_the_ring(r, rim):
+    """Did the ball pass the ring and then fall away into the pool?
+
+    Every shot still missed after the drop zone was sized against the answer key is a
+    MISS at the right hoop, and all of them report the same reason: the ball never
+    reached the space under the hoop. That is correct and it is the point. A make
+    drops through the net and an airball falls short into the water, so both land
+    under the hoop; a miss hits the rim and caroms away from it.
+
+    Growing the zone until it catches caroms also catches the deck -- at 5.0 the
+    key reaches 19/20 and all three of the deck false positives review flagged come
+    back. So a carom needs its own evidence rather than a looser zone.
+
+    The evidence is already in the track and nothing reads it. Runs are split
+    where the ball stops falling, so a bounce ALWAYS creates a run boundary. A
+    boundary that happens at the ring, with the ball climbing afterwards, is a
+    carom. A boundary anywhere else is the ball being lost, or resting, or
+    someone walking with it.
+    """
+    rcx, rcy = (rim[0] + rim[2]) / 2, (rim[1] + rim[3]) / 2
+    rw = max(1.0, rim[2] - rim[0])
+    near = min((((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5) / rw for p in r)
+    if near > RING_NEAR:
+        return False
+    return (max(p["y"] for p in r) - min(p["y"] for p in r)) >= RING_FALL_PX
 
 
 def _one_box_per_ball(hits):
@@ -462,9 +504,11 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # Nothing on the deck can enter it at any dilation short of 1.8.
                 if _dropzone(hoop, rim) is not None:
                     poly = _dropzone(hoop, rim)
-                    if not any(dropzone.contains(poly, p["x"], p["y"]) for p in r):
+                    in_zone = any(dropzone.contains(poly, p["x"], p["y"]) for p in r)
+                    if not in_zone and not _through_the_ring(r, rim):
                         _why(hoop, r, "never reached the space under the hoop",
-                             f"{len(r)} points, none inside the drop zone")
+                             f"{len(r)} points, none inside the drop zone, "
+                             f"and it did not pass the ring and fall away")
                         continue
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
