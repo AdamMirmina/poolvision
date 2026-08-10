@@ -164,7 +164,21 @@ SEP_BALL_WIDTHS = 3.0
 # which is a slightly bigger region once the ball's own radius and tracking slop
 # are allowed for. Measured across five known events: at 1.15 the real shot that
 # lands on the zone's corner comes in, and the deck ball stays out until 1.8.
-ZONE_GROW = 1.3
+# Set by sweeping against the 20-shot answer key rather than picked. Recall
+# rises steeply to 2.0 and then stops -- 17/20 at every value from 2.5 to 4.0 --
+# while false calls keep climbing and the deck window he already judged starts
+# leaking. The curve:
+#
+#   grow   found   extra   deck FPs        grow   found   extra   deck FPs
+#   1.0     9/20     0        0            2.5    17/20     4        ~2
+#   1.5    13/20     1        0            3.0    17/20     7         1
+#   2.0    16/20     2        1            5.0    19/20    11         3
+#
+# 2.0 is the knee: every make found (7/7), one deck false call, and past it the
+# zone buys almost nothing. 1.5 is the only value that keeps the deck at zero,
+# and it costs three real shots, which is the wrong trade -- a false call is a
+# clip dismissed in two seconds.
+ZONE_GROW = 2.0
 # The fine-tuned detector fires several boxes for ONE ball in a single frame --
 # five within 25px at t=804.03. Left alone they become parallel tracks of the
 # same flight, and one shot is reported as three or four. Boxes in the same frame
