@@ -73,6 +73,13 @@ def parse_args():
     p.add_argument("--imgsz", type=int, default=1600)
     p.add_argument("--step", type=int, default=1, help="frame stride")
     p.add_argument("--model", default="yolo11s.pt")
+    p.add_argument("--fresh", action="store_true",
+                   help="ignore any checkpoint and rescan from the start")
+    # Settable so the resume path can actually be TESTED. A feature whose only
+    # trigger is "wait an hour then pull the plug" does not get tested, and an
+    # untested resume is worse than none: it would restore silently wrong state.
+    p.add_argument("--ckpt-every", type=int, default=1800,
+                   help="frames between checkpoints")
     p.add_argument("--out", type=Path, default=Path("out/rimwatch.json"))
     # Override the rig's detector padding, so the crop's effect on how much of a
     # descent is visible can be measured rather than argued about. A tighter crop
@@ -113,7 +120,40 @@ def main():
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     start = int(args.t0 * fps)
     end = int(args.t1 * fps) if args.t1 > 0 else total
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    # RESUME. A scan is hours long and this machine restarts on its own: one
+    # Windows-initiated reboot on 2026-08-10 killed a scan at 3600 of 4500 frames
+    # and another before its first progress line, and because the output is only
+    # written at the very end, all of it was lost. Worse, a dead scan and a
+    # running one look identical from the log file, so it went unnoticed for a
+    # day.
+    #
+    # The checkpoint is written beside the output as <out>.partial, holding
+    # everything found so far plus the frame reached. On restart the hits are
+    # loaded back and the decoder seeks past them.
+    ckpt = args.out.with_suffix(args.out.suffix + ".partial")
+    hits_seed, resume_at = {}, start
+    if ckpt.exists() and not args.fresh:
+        try:
+            d = json.loads(ckpt.read_text(encoding="utf-8"))
+            # Only trust a checkpoint describing the SAME window and settings.
+            # Resuming one scan's work into another's output is the silent-wrong
+            # failure this project keeps producing.
+            same = (d.get("window_s") == [args.t0, args.t1]
+                    and d.get("conf") == args.conf
+                    and d.get("imgsz") == args.imgsz
+                    and d.get("video") == str(args.video))
+            if same and isinstance(d.get("at_frame"), int):
+                hits_seed = d.get("hits") or {}
+                resume_at = max(start, int(d["at_frame"]))
+                n = sum(len(v) for v in hits_seed.values())
+                log(f"resuming from {resume_at} ({(resume_at-start)/max(1,end-start)*100:.0f}%), "
+                    f"{n} detections already found")
+            elif not same:
+                log("checkpoint is for a different window or settings, ignoring it")
+        except Exception as e:
+            log(f"checkpoint unreadable, starting over ({e})")
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, resume_at)
     log(f"rimwatch {start/fps:.0f}s-{end/fps:.0f}s of {total/fps:.0f}s "
         f"({end-start} frames), conf {args.conf}, imgsz {args.imgsz}")
 
@@ -137,8 +177,8 @@ def main():
     log(f"stacked canvas {cw}x{y} from {len(order)} hoops: "
         + ", ".join(f"{k} {det[k][2]-det[k][0]}x{det[k][3]-det[k][1]}" for k in order))
 
-    hits = {k: [] for k in det}
-    f = start
+    hits = {k: list(hits_seed.get(k, [])) for k in det}
+    f = resume_at
     bad = 0
     covered = 0
     t0 = time.time()
@@ -217,10 +257,29 @@ def main():
                         "w": round(bx2 - bx1, 1),
                     })
         f += 1
-        if (f - start) % 1800 == 0:
+        if (f - start) % args.ckpt_every == 0:
             done, tot = f - start, end - start
             n = sum(len(v) for v in hits.values())
             log(f"  {done}/{tot} frames, {time.time()-t0:.0f}s, {n} rim-region detections")
+            # Checkpoint on the same cadence: one small write per 1800 frames,
+            # which is about a minute of footage and roughly an hour of work on
+            # this laptop. Written to a temp file and replaced, so a crash
+            # DURING the write cannot leave a half-written checkpoint that the
+            # next run would trust.
+            try:
+                tmp = ckpt.with_suffix(ckpt.suffix + ".tmp")
+                ckpt.parent.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(json.dumps({
+                    "video": str(args.video),
+                    "window_s": [args.t0, args.t1],
+                    "conf": args.conf,
+                    "imgsz": args.imgsz,
+                    "at_frame": f,
+                    "hits": hits,
+                }), encoding="utf-8")
+                tmp.replace(ckpt)
+            except Exception as e:
+                log(f"  (could not write checkpoint: {e})")
     cap.release()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -240,6 +299,13 @@ def main():
     log(f"scanned {covered} of {want} frames ({pct:.0f}%)"
         + ("" if pct > 99 else "   <-- INCOMPLETE, results cover only part of the video"))
     log(f"wrote {args.out}")
+    # The scan finished, so the checkpoint is now a trap: leaving it would make a
+    # future run resume a completed scan and report partial coverage.
+    try:
+        if ckpt.exists():
+            ckpt.unlink()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
