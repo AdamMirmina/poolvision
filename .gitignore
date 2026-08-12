@@ -55,3 +55,12 @@ Thumbs.db
 .env.*
 !.env.example
 # END:credentials
+
+# Local-only notes and internal state, never published.
+AGENTS.md
+CLAUDE.md
+docs/PHILOSOPHY.md
+docs/CREDENTIALS.md
+docs/BUILD-QUEUE.md
+docs/playbooks/
+docs/STATE.md
