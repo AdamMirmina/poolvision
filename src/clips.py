@@ -517,15 +517,39 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 #   the 13:23 arc                 7
                 #
                 # Nothing on the deck can enter it at any dilation short of 1.8.
-                if _dropzone(hoop, rim) is not None:
-                    poly = _dropzone(hoop, rim)
-                    in_zone = any(dropzone.contains(poly, p["x"], p["y"]) for p in r)
-                    through = _through_the_ring(r, rim)
-                    if not in_zone and not through:
-                        _why(hoop, r, "never reached the space under the hoop",
-                             f"{len(r)} points, none inside the drop zone, "
-                             f"and it did not pass the ring and fall away")
-                        continue
+                # THE DROP ZONE IS GONE as a hard gate, and it should have been
+                # the moment gravity arrived.
+                #
+                # It existed for one reason: nothing else could exclude the deck.
+                # A ball rolling on the concrete passes over the ring more
+                # squarely than a real shot, because the deck sits behind the
+                # hoop and the image reads depth as height. The zone was the only
+                # geometry that knew about depth.
+                #
+                # Gravity excludes those cases directly and better -- a carried or
+                # rolled ball moves at wading speed whatever the geometry says --
+                # so the zone became a second, weaker copy of a test already being
+                # done properly.
+                #
+                # Measured across all seven ground-truth windows, which is the
+                # only reason this is knowable:
+                #
+                #   zone at 2.0   41/57 found   0 named FP   7 other
+                #   zone at 4.0   47/57         1            15
+                #   no zone       48/57         1            15
+                #
+                # It was the reason for 7 of 9 misses on a different camera and
+                # 4 of 4 on the marked minute. Seven real shots to prevent one
+                # false call is the wrong trade by its own standard: "a false call
+                # is a clip dismissed in two seconds, a missed shot is invisible."
+                #
+                # Kept as a SOFT signal rather than deleted: a run that reached
+                # the zone still passes the ring test for free, since being under
+                # the hoop is real evidence, just not necessary evidence.
+                poly = _dropzone(hoop, rim)
+                in_zone = bool(poly) and any(
+                    dropzone.contains(poly, p["x"], p["y"]) for p in r)
+                through = _through_the_ring(r, rim) or in_zone
                 carried = CARRY_DETS <= len(r) <= CARRY_MAX
                 if len(r) < min_dets and not carried:
                     _why(hoop, r, "too few detections",
