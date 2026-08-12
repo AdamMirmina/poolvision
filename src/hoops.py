@@ -142,6 +142,27 @@ _S0801_RIMS = {
     "right": (3378, 676, 3542, 736),
 }
 
+# 2026-08-10 session (IMG_2769 35 min, IMG_2770 25 min). A THIRD camera position,
+# wider and higher than the 08-01 one, and the first footage with a real crowd in
+# it: fifteen to twenty people, against three to five in everything the pipeline
+# has ever been tested on.
+#
+# Measured off the averaged frame per RIG-SETUP: the global orange-steel mask
+# found the left ring but only fragments of the right, which is the documented
+# partial-arc trap. Re-masked locally around each hoop and drawn back on the
+# frame to check. Widths land at 168 and 162, in line with 203/164 on the 08-01
+# rig and 168/172 on the 07-29 one, which is the sanity check that the numbers
+# are a ring and not a pole.
+#
+# NO drop zone yet. It used to be mandatory because it was the only gate that
+# knew about depth; now that gravity rejects carried and rolled balls directly,
+# the zone is a soft signal and a rig works without one. That is a real saving:
+# the water-plane fit was the longest part of setting up a new angle.
+_S0810_RIMS = {
+    "left": (602, 854, 770, 950),
+    "right": (3228, 633, 3390, 716),
+}
+
 RIGS: dict[str, Rig] = {
     "IMG_2403.MOV": Rig(
         rims=_S0727_RIMS,
@@ -284,3 +305,19 @@ def rig_for(video: str) -> Rig:
             f"numbers. Known: {', '.join(sorted(RIGS))}"
         )
     return RIGS[key]
+
+# IMG_2769 is deliberately absent. A camera that
+# moved mid-recording is TWO rigs, not one, and its second half cannot see the
+# right hoop at all -- so it needs its own measurement pass and a window limit,
+# and borrowing this entry would silently point the right-hoop detector at empty
+# deck. hoops.rig_for raises for it, which is the correct outcome until someone
+# does that work.
+RIGS["IMG_2770.MOV"] = Rig(
+    rims=_S0810_RIMS,
+    crops={k: _crop_around(v, 430, 400) for k, v in _S0810_RIMS.items()},
+    dets={k: _crop_around(v, 430, 400) for k, v in _S0810_RIMS.items()},
+    # Left edge set past the grass and fence, which is everything the ball can
+    # never be in. Verified against the averaged frame rather than copied.
+    pool=(430, 0, 3840, 2160),
+    tilt={"left": -9.0, "right": 9.0},
+)
