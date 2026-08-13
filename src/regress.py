@@ -47,6 +47,11 @@ CASES = [
     # and nothing in the pipeline has ever seen it. Everything above shares one
     # afternoon and one rig.
     ("2482 different camera (HELD OUT)", "IMG_2482.MOV", ["out/key_2482.json"], "answerkey_IMG_2482.json"),
+    # The only genuinely unbiased case left. 2482 and the marked minute were both
+    # consumed the moment a rule was changed BASED on their results; this footage
+    # postdates every rule in the pipeline. Third camera, nine players, and dunks
+    # are a third of the play -- 8 of 23, against one in everything else combined.
+    ("2770 new camera + dunks (HELD OUT)", "IMG_2770.MOV", ["out/key_2770.json"], "answerkey_IMG_2770.json"),
 ]
 
 TOL = 4.0
