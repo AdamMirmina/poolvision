@@ -11,7 +11,7 @@ const H = { Authorization: auth.token, "Content-Type": "application/json" };
 const col = await (await fetch(PB + "/api/collections/vision_pics", { headers: H })).json();
 if ((col.fields || []).some((f) => f.name === "clips")) { console.log("already there"); process.exit(0); }
 const fields = [...col.fields, {
-  name: "clips", type: "file", maxSelect: 8, maxSize: 60000000,
+  name: "clips", type: "file", maxSelect: 16, maxSize: 60000000,
   mimeTypes: ["video/mp4", "video/quicktime"],
 }];
 const res = await fetch(PB + "/api/collections/vision_pics", {
