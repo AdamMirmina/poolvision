@@ -226,6 +226,20 @@ RIG_RIMS: dict = {}
 
 
 EXPLAIN = []          # (t, hoop, reason, detail) for every run a gate rejected
+TRACE = None          # (t0, t1, hoop) -- follow runs in this window through every stage
+
+
+def _tr(stage, hoop, r, note=""):
+    if not TRACE:
+        return
+    t0, t1, th = TRACE
+    if th and hoop != th:
+        return
+    a, b = r[0]["t"], r[-1]["t"]
+    if b < t0 or a > t1:
+        return
+    print(f"  [{stage:<14}] {hoop:5s} {a:7.2f}-{b:7.2f}  n={len(r):3d}  "
+          f"y {min(x['y'] for x in r):.0f}->{max(x['y'] for x in r):.0f}  {note}")
 RIG_DROP: dict = {}   # per-hoop drop-plane calibration, set alongside RIG_RIMS
 _ZONES: dict = {}
 
@@ -359,6 +373,7 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
             rw = max(1.0, rim[2] - rim[0])
             kept = []
             for r in runs:
+                _tr("built", hoop, r)
                 drop = r[-1]["y"] - r[0]["y"]
                 # A DUNK never falls far. The ball is carried to the rim, so a
                 # gate built on "how far did it drop" cannot see one -- and on a
@@ -600,19 +615,38 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                     _why(hoop, r, "ended too far from the rim",
                          f"{near:.1f} rim widths, needs under {END_NEAR_RIM}")
                     continue
+                _tr("passed gates", hoop, r)
                 kept.append(r)
 
             # A ball that bounces up off the rim and rolls before dropping is ONE
             # shot, not two. So consecutive descents at the same hoop, close in time
             # and both finishing at the rim, are joined rather than counted twice
             # -- and the clip cut from the joined event runs to the real outcome.
+            # A rebound someone CATCHES and puts back is two shots, and no time
+            # threshold can say so: the 5:55 and 5:58 are 0.12s apart in the
+            # data because the ball never stops being tracked. Sweeping the gap
+            # from 1.1s down to 0.3s changed nothing, which is the tell.
+            #
+            # What separates them is how far the ball CLIMBS in between. A ball
+            # bouncing off the ring pops up a little and drops; a ball someone
+            # lifts to dunk climbs a long way. Between those two shots it rose
+            # 415px, from y=1171 back to y=756. review found exactly this:
+            # "white caught the rebound and put it back in for a dunk. ball
+            # entered the box during purple's shot and stayed there through
+            # white's dunk."
             merged_runs = []
             for r in kept:
                 if merged_runs and r[0]["t"] - merged_runs[-1][-1]["t"] <= BOUNCE_GAP_S:
+                    _tr("bounce-merged", hoop, r,
+                        f"into the run ending {merged_runs[-1][-1]['t']:.2f} "
+                        f"gap {r[0]['t'] - merged_runs[-1][-1]['t']:.2f}s  "
+                        f"prev ends y={merged_runs[-1][-1]['y']:.0f}  "
+                        f"this starts y={r[0]['y']:.0f}")
                     merged_runs[-1] = merged_runs[-1] + r
                 else:
                     merged_runs.append(r)
             for r in merged_runs:
+                _tr("-> event", hoop, r)
                 events.append((hoop, r))
 
     events.sort(key=lambda e: e[1][0]["t"])
@@ -643,9 +677,14 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
         # snowball.
         if (merged and merged[-1][0] == hoop
                 and dets[0]["t"] - merged[-1][1][0]["t"] <= MERGE_CALLS_S):
+            _tr("near-merged", hoop, dets,
+                f"into the event starting {merged[-1][1][0]['t']:.2f} "
+                f"(starts {dets[0]['t'] - merged[-1][1][0]['t']:.2f}s apart <= {MERGE_CALLS_S})")
             merged[-1] = (hoop, merged[-1][1] + dets)
             continue
         if merged and merged[-1][0] == hoop and dets[0]["t"] <= merged[-1][1][-1]["t"]:
+            _tr("overlap-merged", hoop, dets,
+                f"into the event {merged[-1][1][0]['t']:.2f}-{merged[-1][1][-1]['t']:.2f}")
             merged[-1] = (hoop, sorted(merged[-1][1] + dets, key=lambda d: d["t"]))
         else:
             merged.append((hoop, dets))
