@@ -180,7 +180,13 @@ def main():
     hits = {k: list(hits_seed.get(k, [])) for k in det}
     f = resume_at
     bad = 0
-    covered = 0
+    # Count the frames a CHECKPOINT already covered, or a resumed scan reports
+    # its own slice as the whole job: the 2770 scan resumed at 73% and finished
+    # with "scanned 5878 of 22078 frames (27%) <-- INCOMPLETE" on a run whose
+    # data was complete. An honest coverage line is the whole point of this
+    # counter, and one that under-reports after a resume would get a good scan
+    # thrown away and re-run.
+    covered = max(0, resume_at - start) // max(1, args.step)
     t0 = time.time()
     while f < end:
         # grab() advances the decoder without paying for the color conversion
