@@ -102,21 +102,32 @@ def main():
         shots = [s for s in key.get("shots", []) if scanned(s["t"])]
         nots = [s for s in key.get("not_shots", []) if scanned(s["t"])]
 
-        used, found, missed = set(), 0, []
-        for s in shots:
-            hit = None
+        # NEAREST first, not first-within-tolerance. the 5:55 and 5:58 shots
+        # are three seconds apart, and the old order let the 5:55 mark swallow
+        # the call at 5:57.33 -- which is 0.67s from his 5:58 and 2.33s from his
+        # 5:55 -- leaving 5:58 scored as a MISS on a shot the model had found.
+        # That is the scorer inventing a failure, which is worse than missing a
+        # real one: it sent this session chasing a dunk problem that was partly
+        # an artefact of how the two were paired.
+        #
+        # Pair every candidate by |dt| across the whole case, closest first.
+        pairs = []
+        for si, s in enumerate(shots):
             for i, c in enumerate(calls):
-                if i in used or abs(c["t"] - s["t"]) > TOL:
+                if abs(c["t"] - s["t"]) > TOL:
                     continue
                 if c["hoop"] and s.get("hoop") and c["hoop"] != s["hoop"]:
                     continue
-                hit = i
-                break
-            if hit is None:
-                missed.append(s)
-            else:
-                used.add(hit)
-                found += 1
+                pairs.append((abs(c["t"] - s["t"]), si, i))
+        pairs.sort()
+        used, taken, found = set(), set(), 0
+        for _, si, i in pairs:
+            if si in taken or i in used:
+                continue
+            taken.add(si)
+            used.add(i)
+            found += 1
+        missed = [s for si, s in enumerate(shots) if si not in taken]
 
         # A call landing on something review explicitly said was NOT a shot is the
         # expensive kind of wrong, and is counted separately from a call that is
