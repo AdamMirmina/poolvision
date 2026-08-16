@@ -1,0 +1,179 @@
+{
+ "video": "IMG_2528.MOV",
+ "marked_by": "review",
+ "marked_on": "2026-08-09",
+ "covers": [
+  900,
+  1260
+ ],
+ "how": "Watched a tape carrying NO model output, so these are a record of the game rather than a reaction to what the pipeline claimed. the note: 'times are rough estimates: recorded times are either right before the shot, as ball is in air, or right after it hits, but they all correspond to shots.'",
+ "why_it_matters": "Before this the project had 7 shots of continuous ground truth across two windows, which is why two rules in a row scored well on one minute and collapsed on the next. This is 20, with hoop, outcome and shooter on every one.",
+ "caution_on_attribution": "The shooters run in a STRICT rotation, so a model that simply follows the order pink-white-blue scores 100% without reading a single cap. Attribution has to be reported against that baseline, not against a 33% coin flip.",
+ "shots": [
+  {
+   "t": 907,
+   "at": "15:07",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 929,
+   "at": "15:29",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 943,
+   "at": "15:43",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 957,
+   "at": "15:57",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 971,
+   "at": "16:11",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 995,
+   "at": "16:35",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1012,
+   "at": "16:52",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 1035,
+   "at": "17:15",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1085,
+   "at": "18:05",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1091,
+   "at": "18:11",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 1099,
+   "at": "18:19",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1105,
+   "at": "18:25",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1112,
+   "at": "18:32",
+   "hoop": "right",
+   "outcome": "airball",
+   "note": "behind the back and airball, short of the basket;",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 1121,
+   "at": "18:41",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1171,
+   "at": "19:31",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1178,
+   "at": "19:38",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 1186,
+   "at": "19:46",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1195,
+   "at": "19:55",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1201,
+   "at": "20:01",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 1210,
+   "at": "20:10",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "white"
+  }
+ ],
+ "not_shots": [
+  {
+   "t": 1068,
+   "at": "17:48",
+   "what": "calibration",
+   "note": "players line up in a row before the next set. A per-party cap reference, filmed without anyone planning it as one."
+  },
+  {
+   "t": 1240,
+   "at": "20:40",
+   "what": "calibration"
+  }
+ ],
+ "conditions": [
+  {
+   "from": 935,
+   "note": "defenders now have hands up instead of at sides"
+  },
+  {
+   "from": 1125,
+   "note": "defenders now have hands up instead of at sides"
+  }
+ ],
+ "names_removed": "Shooters recorded by CAP COLOR, not name. The repo is public and the pipeline only ever uses the cap; the name mapping is a local detail and is not needed to score anything."
+}

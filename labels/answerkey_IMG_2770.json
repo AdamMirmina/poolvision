@@ -1,0 +1,193 @@
+{
+ "video": "IMG_2770.MOV",
+ "marked_by": "review",
+ "marked_on": "2026-08-11",
+ "covers": [
+  240,
+  600
+ ],
+ "how": "Marked blind in the panel's pause-to-mark UI, against a tape carrying no model output.",
+ "why_it_matters": "Third camera position, nine players, and the first footage where dunks are a third of the play. Nothing in the pipeline has seen any of it.",
+ "timing_caveat": "keep in mind, i'm pausing the video after the shot, so i can know if it went in or not. so my timestamps may be a sec or 2 off from when the ball was shot",
+ "shots": [
+  {
+   "t": 245,
+   "at": "4:05",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 279,
+   "at": "4:39",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 313,
+   "at": "5:13",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 325,
+   "at": "5:25",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 340,
+   "at": "5:40",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 343,
+   "at": "5:43",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 350,
+   "at": "5:50",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 352,
+   "at": "5:52",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "red",
+   "dunk": true,
+   "note": "missed dunk"
+  },
+  {
+   "t": 355,
+   "at": "5:55",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 358,
+   "at": "5:58",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "white",
+   "dunk": true
+  },
+  {
+   "t": 365,
+   "at": "6:05",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 384,
+   "at": "6:24",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "yellow",
+   "dunk": true
+  },
+  {
+   "t": 431,
+   "at": "7:11",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink",
+   "dunk": true,
+   "note": "attempted dunk"
+  },
+  {
+   "t": 438,
+   "at": "7:18",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "orange",
+   "dunk": true
+  },
+  {
+   "t": 460,
+   "at": "7:40",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 463,
+   "at": "7:43",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink",
+   "dunk": true
+  },
+  {
+   "t": 494,
+   "at": "8:14",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 498,
+   "at": "8:18",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "red",
+   "dunk": true
+  },
+  {
+   "t": 514,
+   "at": "8:34",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 521,
+   "at": "8:41",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink",
+   "dunk": true
+  },
+  {
+   "t": 542,
+   "at": "9:02",
+   "hoop": "right",
+   "outcome": "airball",
+   "shooter_cap": "red"
+  },
+  {
+   "t": 581,
+   "at": "9:41",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 590,
+   "at": "9:50",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "orange"
+  }
+ ],
+ "not_shots": [
+  {
+   "t": 562,
+   "at": "9:22",
+   "what": "yellow dribbling the ball on the deck, not even in the pool",
+   "note": "Judged while labeling merged pairs. The deck again, which has now defeated five separate rules."
+  }
+ ]
+}

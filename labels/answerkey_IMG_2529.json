@@ -1,0 +1,33 @@
+{
+  "video": "IMG_2529.MOV",
+  "marked_by": "review",
+  "marked_on": "2026-08-09",
+  "how": "Marked across three sessions, each against a tape of the model's own calls. Weaker evidence than IMG_2528's key, which was marked blind, because a tape showing the model's output can only surface what he chose to correct -- so absence of a mark here is not proof there was no shot. The named false positives are the strong half: he watched those specific calls and said what each really was.",
+  "windows": [
+    {"from": 475, "to": 550, "note": "the marked minute. HELD OUT: no rule was tuned on this."},
+    {"from": 630, "to": 650, "note": "the deck. Three model calls, no shots at all."},
+    {"from": 650, "to": 670, "note": "a dunk on the right."},
+    {"from": 795, "to": 815, "note": "the big arc on the left, off the backboard, in."}
+  ],
+  "shots": [
+    {"t": 482,  "at": "8:02",  "hoop": "left",  "outcome": "unknown", "note": "clear shot left with huge arc"},
+    {"t": 498,  "at": "8:18",  "hoop": "right", "outcome": "unknown", "note": "behind the back shot, clear arc on right"},
+    {"t": 515,  "at": "8:35",  "hoop": "left",  "outcome": "unknown", "note": "shot on left but it was pretty short"},
+    {"t": 528,  "at": "8:48",  "hoop": "right", "outcome": "unknown", "note": "shot on right, completely missed it"},
+    {"t": 541,  "at": "9:01",  "hoop": "right", "outcome": "unknown", "note": "obvious shot on right, missed it"},
+    {"t": 660,  "at": "11:00", "hoop": "right", "outcome": "make",    "note": "a player dunked on right and nothing triggered"},
+    {"t": 803,  "at": "13:23", "hoop": "left",  "outcome": "make",    "note": "huge shot on left. big arc and hit bb and went in"}
+  ],
+  "not_shots": [
+    {"t": 490, "at": "8:10", "what": "ball never left white's hands"},
+    {"t": 491, "at": "8:11", "what": "ball never left white's hands"},
+    {"t": 492, "at": "8:12", "what": "ball never left white's hands"},
+    {"t": 502, "at": "8:22", "what": "blue got out of the pool; the ball was not moving or even in the pool"},
+    {"t": 506, "at": "8:26", "what": "blue stands up on concrete behind the pool"},
+    {"t": 522, "at": "8:42", "what": "held up a tiny bit and brought back down, never released"},
+    {"t": 535, "at": "8:55", "what": "a bullet with almost no arc and way below the rim, the equivalent of a pass"},
+    {"t": 635, "at": "10:35", "what": "a ball rolling across the deck"},
+    {"t": 637, "at": "10:37", "what": "a player picked the rolling ball up"},
+    {"t": 640, "at": "10:40", "what": "a player got back in the pool with it"}
+  ]
+}

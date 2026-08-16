@@ -1,0 +1,53 @@
+{
+  "video": "IMG_2482.MOV",
+  "marked_by": "review",
+  "marked_on": "2026-08-10",
+  "covers": [300, 660],
+  "how": "Marked blind, against a tape carrying no model output. Same method as the IMG_2528 key.",
+  "why_it_matters": "The first ground truth from DIFFERENT conditions. Every rule in the pipeline was tuned on IMG_2528: one camera, good light, three players, orderly turns. This is a different camera setup, five players, five cap colors, and real game play rather than a drill. If the rules hold here they describe basketball; if they collapse, 20/20 on the drill was fit.",
+  "conditions": {
+    "players": 5,
+    "caps": ["blue", "yellow", "pink", "green", "white"],
+    "play": "loose game, not a rotation"
+  },
+  "shots": [
+    {"t": 318,  "at": "5:18",  "hoop": "right", "outcome": "miss", "shooter_cap": "blue"},
+    {"t": 323,  "at": "5:23",  "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 329,  "at": "5:29",  "hoop": "right", "outcome": "make", "shooter_cap": "pink"},
+    {"t": 352,  "at": "5:52",  "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 356,  "at": "5:56",  "hoop": "left",  "outcome": "make", "shooter_cap": "green"},
+    {"t": 374,  "at": "6:14",  "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 381,  "at": "6:21",  "hoop": "left",  "outcome": "make", "shooter_cap": "yellow",
+     "note": "bounced up off the rim and came back down into the basket"},
+    {"t": 401,  "at": "6:41",  "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 410,  "at": "6:50",  "hoop": "right", "outcome": "miss", "shooter_cap": "blue"},
+    {"t": 415,  "at": "6:55",  "hoop": "left",  "outcome": "make", "shooter_cap": "yellow"},
+    {"t": 430,  "at": "7:10",  "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 434,  "at": "7:14",  "hoop": "right", "outcome": "miss", "shooter_cap": "blue"},
+    {"t": 461,  "at": "7:41",  "hoop": "left",  "outcome": "miss", "shooter_cap": "green"},
+    {"t": 468,  "at": "7:48",  "hoop": "left",  "outcome": "make", "shooter_cap": "yellow"},
+    {"t": 486,  "at": "8:06",  "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 491,  "at": "8:11",  "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow",
+     "note": "bounced around on the rim for a while and did not go in"},
+    {"t": 501,  "at": "8:21",  "hoop": "right", "outcome": "miss", "shooter_cap": "pink"},
+    {"t": 507,  "at": "8:27",  "hoop": "right", "outcome": "make", "shooter_cap": "blue"},
+    {"t": 562,  "at": "9:22",  "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 584,  "at": "9:44",  "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 599,  "at": "9:59",  "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 604,  "at": "10:04", "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 607,  "at": "10:07", "hoop": "right", "outcome": "miss", "shooter_cap": "blue"},
+    {"t": 611,  "at": "10:11", "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 617,  "at": "10:17", "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 631,  "at": "10:31", "hoop": "left",  "outcome": "miss", "shooter_cap": "green"},
+    {"t": 635,  "at": "10:35", "hoop": "right", "outcome": "miss", "shooter_cap": "blue"},
+    {"t": 639,  "at": "10:39", "hoop": "left",  "outcome": "miss", "shooter_cap": "yellow"},
+    {"t": 644,  "at": "10:44", "hoop": "right", "outcome": "miss", "shooter_cap": "white"},
+    {"t": 658,  "at": "10:58", "hoop": "left",  "outcome": "miss", "shooter_cap": "green",
+     "note": "missed dunk"}
+  ],
+  "not_shots": [
+    {"t": 447, "at": "7:27",
+     "what": "someone throwing the ball from the right-hand concrete back into the pool, next to the basket but behind it",
+     "note": "review flagged this himself as a likely mistake for the model. It is the deck case again -- a ball traveling fast near the right hoop, thrown by a person standing out of the water, at a depth the image reads as height. The deck is what defeated three earlier rules."}
+  ]
+}

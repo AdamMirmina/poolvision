@@ -1,0 +1,40 @@
+{
+  "judged_by": "review",
+  "judged_on": "2026-08-14",
+  "what": "Every place the pipeline merged two descents at one hoop into a single call, judged one shot or two.",
+  "why": "No measurement separates these. The gap between descents runs 0.02s to 0.87s, and how far the ball climbs in between runs 25px to 155px, with confirmed cases sitting mid-range in both. Wrists looked promising at 0.75 ball-widths for a catch against 1.18 for a bounce, but that was one example each.",
+  "the_finding": "Clip 6 kills the simple version of the wrist rule. Orange CAUGHT the rebound and raised it behind the rim, then passed it back out instead of shooting. A rule keyed on 'someone caught it' calls that two shots and is wrong. Catching is necessary but not sufficient -- what follows the catch has to be a shot at the hoop, not a pass away from it.",
+  "clips": [
+    {"n": 1,  "video": "IMG_2528.MOV", "hoop": "left",  "t": 907,  "verdict": "one",
+     "note": "missed, hit the deck, bounced on the deck, and rolled away"},
+    {"n": 2,  "video": "IMG_2528.MOV", "hoop": "left",  "t": 944,  "verdict": "one",
+     "note": "bounced off the rim, up in the air, came down in the water. it was a miss"},
+    {"n": 3,  "video": "IMG_2482.MOV", "hoop": "left",  "t": 380,  "verdict": "one",
+     "note": "bounced off the rim twice and went in"},
+    {"n": 4,  "video": "IMG_2482.MOV", "hoop": "left",  "t": 640,  "verdict": "one",
+     "note": "bounced off rim and came down in the water. miss"},
+    {"n": 5,  "video": "IMG_2482.MOV", "hoop": "right", "t": 446,  "verdict": "not a shot",
+     "note": "someone throwing the ball from the deck into the pool. review had already flagged this one himself when marking 2482: 'had someone throwing the ball from the right concrete back into the pool, next to the basket but behind. Flagging a likely mistake'"},
+    {"n": 6,  "video": "IMG_2770.MOV", "hoop": "left",  "t": 313,  "verdict": "one",
+     "note": "bounced off rim, orange caught it, orange raised it behind the rim but didn't dunk it and instead passed it back out",
+     "matters": "A catch WITHOUT a second shot. This is the case that breaks a wrist-proximity rule."},
+    {"n": 7,  "video": "IMG_2770.MOV", "hoop": "left",  "t": 357,  "verdict": "two",
+     "note": "purple shot, bounced off rim, white caught and dunked"},
+    {"n": 8,  "video": "IMG_2770.MOV", "hoop": "left",  "t": 514,  "verdict": "one",
+     "note": "bounced off rim into water"},
+    {"n": 9,  "video": "IMG_2770.MOV", "hoop": "left",  "t": 516,  "verdict": "duplicate",
+     "note": "same clip as 8 -- the merge fired twice inside one event"},
+    {"n": 10, "video": "IMG_2770.MOV", "hoop": "right", "t": 351,  "verdict": "two",
+     "note": "bounced off rim, red picked it up out of water and put it back in, but missed the dunk"},
+    {"n": 11, "video": "IMG_2770.MOV", "hoop": "right", "t": 351,  "verdict": "duplicate",
+     "note": "same as 10"},
+    {"n": 12, "video": "IMG_2770.MOV", "hoop": "right", "t": 562,  "verdict": "not a shot",
+     "note": "yellow dribbling the ball on the deck. not even in the pool"}
+  ],
+  "tally": {"one": 6, "two": 2, "not_a_shot": 2, "duplicate": 2},
+  "so_what": [
+    "TWO of the twelve calls are not shots at all -- a ball thrown in from the deck and someone dribbling on the concrete. Both are the deck again, which has now defeated five separate rules.",
+    "TWO are duplicates: the merge fired twice inside one event, so the pipeline emitted a pair of calls for a single shot.",
+    "Only 2 of 12 are genuine re-shoots, so the merge is usually right. It is wrong about 1 in 6, and both errors cost a real shot."
+  ]
+}
