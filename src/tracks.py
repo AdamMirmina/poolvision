@@ -46,6 +46,31 @@ def build_tracks(hits: list[dict], match_px: float | None = None,
     same setting over and over and reports it as insensitive, which is exactly
     what happened the first time this was tuned.
     """
+    # MATCH_PX is a distance PER FRAME, and the comment on it -- "a ball moves
+    # ~15-60 px/frame here" -- was measured on 60fps footage. IMG_2482 is 30fps,
+    # so the ball travels twice as far between consecutive sightings and a fast
+    # throw exceeds the radius, breaking the track every frame. Six of its shots
+    # were missed with runs of 1-2 points despite having MORE detections around
+    # them than the median shot the pipeline finds (71-138 against a median 99).
+    #
+    # Raising the constant globally recovers two of them and costs three false
+    # calls on the 60fps footage, which is the wrong trade. Scaling it by the
+    # actual frame interval is the same fix without the cost: 30fps footage gets
+    # a proportionally larger radius and 60fps footage is unchanged.
+    #
+    # Capped at 1.5x, swept: 1.0 and 1.3 recover nothing, 1.5 recovers both shots
+    # with the named-false-call count UNCHANGED at 2, and 2.0 and 3.0 recover no
+    # more while 3.0 adds a named false call. The cost of 1.5 is ten more
+    # anonymous extra calls, which is the own trade -- a false call is a clip
+    # dismissed in two seconds, a missed shot is invisible.
+    #
+    # The interval is inferred from the detections themselves rather than plumbed
+    # through from the video, so nothing upstream has to remember to pass it.
+    if match_px is None:
+        ts = sorted({h["t"] for h in hits})
+        dts = [b - a for a, b in zip(ts, ts[1:]) if 0 < b - a < 0.2]
+        dt = min(dts) if dts else 1 / 60.0
+        match_px = MATCH_PX * max(1.0, min(1.5, dt * 60.0))
     match_px = MATCH_PX if match_px is None else match_px
     max_miss = MAX_MISS if max_miss is None else max_miss
     min_track = MIN_TRACK if min_track is None else min_track
