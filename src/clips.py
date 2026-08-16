@@ -217,6 +217,11 @@ MERGE_CALLS_S = 2.5
 # 1200 sits nearly midway, with the slowest real shot 32% above it and the
 # fastest carry 30% below.
 MIN_PEAK_FALL = 1200.0
+# How far the speed floor may be relaxed on lower-frame-rate footage. Swept across
+# all eight cases: 1.0 leaves six shots rejected, 1.2 recovers every one of them
+# with the named-false-call count unchanged, 1.4 recovers no more, and 2.0 adds a
+# named false call. So 1.2 is the knee and there is nothing above it to buy.
+FPS_SPEED_CAP = 1.2
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
 BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
@@ -269,6 +274,13 @@ def _through_the_ring(r, rim):
     if near > RING_NEAR:
         return False
     return (max(p["y"] for p in r) - min(p["y"] for p in r)) >= RING_FALL_PX
+
+
+def _frame_scale(hits):
+    """How much longer this footage's frame interval is than 60fps."""
+    ts = sorted({h["t"] for h in hits})
+    dts = [b - a for a, b in zip(ts, ts[1:]) if 0 < b - a < 0.2]
+    return (min(dts) * 60.0) if dts else 1.0
 
 
 def _one_box_per_ball(hits):
@@ -586,9 +598,18 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # A carried ball can satisfy every geometric test -- it passes
                 # under the ring, it enters the zone, it descends -- and only
                 # fails on speed.
+                # The speed threshold is frame-rate sensitive for the same
+                # reason the track-match radius was: peak speed measured between
+                # consecutive sightings is an AVERAGE over the interval, and a
+                # 33ms interval at 30fps smooths the peak down harder than a
+                # 16ms one at 60fps. Four shots on the only 30fps footage peak at
+                # 1002, 1002, 1063 and 1193 px/s against a 1200 threshold -- all
+                # just underneath, which is what a systematic underestimate looks
+                # like rather than four coincidences.
+                floor = MIN_PEAK_FALL / max(1.0, min(FPS_SPEED_CAP, _frame_scale(hits)))
                 speeds = [(b["y"] - a["y"]) / (b["t"] - a["t"])
                           for a, b in zip(r, r[1:]) if b["t"] > a["t"]]
-                if not speeds or max(speeds) < MIN_PEAK_FALL:
+                if not speeds or max(speeds) < floor:
                     _why(hoop, r, "never fell at the speed of a dropped ball",
                          f"peak {max(speeds) if speeds else 0:.0f} px/s, "
                          f"needs {MIN_PEAK_FALL:.0f}")
