@@ -92,10 +92,17 @@ never used a face. Shot detection uses the ball and the hoop geometry; attributi
 uses cap color and wrist position from pose keypoints. Verified on a five-player
 frame -- all five faces pixelated, all five caps still perfectly readable.
 
-Run it on anything that leaves the machine: a still opened in a chat (which goes
-to Anthropic as an image), a clip uploaded to poolean (which lands on the VPS and
-is reachable by URL), anything sent to anyone. The raw video never leaves,
-because YOLO and ffmpeg run locally.
+**Do NOT run it on everything by default.** It was written for a hypothetical
+nobody had raised, then applied to every artifact, which taxed each one for
+nothing -- blurring twelve short review clips cost over half an hour of CPU and
+delayed handing them to a reviewer. Review asked the right question: "why are we blurring
+faces."
+
+Run it when someone has actually asked, and on stills opened in a CHAT, which go
+to Anthropic as images and are the one genuinely third-party surface here. Clips
+uploaded to poolean land on the own VPS at an unguessable URL and are watched
+by review; that is not a reason to blur. The raw video never leaves the laptop
+either way, because YOLO and ffmpeg run locally.
 
 **"I don't want to be identified by the model."** Simplest of the three: don't
 wear a cap. Attribution is keyed entirely on cap color, so no cap means no
