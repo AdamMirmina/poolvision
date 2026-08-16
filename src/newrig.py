@@ -27,6 +27,12 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--video", default="IMG_2528.MOV")
     p.add_argument("--samples", type=int, default=6)
+    # A camera that MOVED mid-recording is two rigs, and averaging across the
+    # move blends both positions into a smear that the rim mask cannot find --
+    # IMG_2769 returned zero candidates for exactly that reason. Restrict the
+    # average to one segment.
+    p.add_argument("--from", dest="t0", type=float, default=0.0)
+    p.add_argument("--to", dest="t1", type=float, default=0.0)
     return p.parse_args()
 
 
@@ -48,7 +54,13 @@ def main():
     acc = None
     n = 0
     for i in range(args.samples):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(total * (0.2 + 0.6 * i / max(1, args.samples - 1))))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 60.0
+        if args.t1 > 0:
+            lo, hi = args.t0 * fps, args.t1 * fps
+        else:
+            lo, hi = total * 0.2, total * 0.8
+        cap.set(cv2.CAP_PROP_POS_FRAMES,
+                int(lo + (hi - lo) * i / max(1, args.samples - 1)))
         ok, fr = cap.read()
         if not ok:
             continue
