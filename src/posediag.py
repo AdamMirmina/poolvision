@@ -47,6 +47,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # out/ is gitignored here, so this cannot repeat by accident.
 ASSETS = ROOT / "out/diag"
 
+# Draw the rim ellipse, net box and drop zone? Off by default: on the current
+# rigs they are wrong, and a confidently drawn wrong box misleads anyone
+# reading the frame. Turn on with --rim-geometry while tuning them.
+SHOW_RIM_GEOMETRY = False
+
 # BGR. Named, because a previous version labeled a color key in the legend and
 # got the channel order backwards -- "cyan = above" was drawn in yellow, and review
 # spent a round of review on a picture whose own key was wrong. Every marker here
@@ -311,11 +316,20 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
             txk = bxk[0], int(bxk[1] - (h_near + (h_far - h_near) * f_))
             cv2.line(fr, bxk, txk, LINE3, max(1, th - 2), cv2.LINE_AA)
 
-    # The rim as a tilted ellipse, and the net box under it. Both are the shapes
-    # the make rules are measured against, so both get drawn on every frame: a
-    # rule is only as trustworthy as the box it reads, and drawing them is how
-    # that gets checked by eye instead of assumed.
-    if rim is not None:
+    # The rim ellipse, the net box under it and the drop zone.
+    #
+    # Off by default now. They were drawn on every frame so a rule could be
+    # checked by eye rather than assumed, which was right while the make/miss
+    # geometry was being built. On this rig they are visibly wrong -- review, of
+    # the review editor: "the rim/drop zone stuff is completely wrong" -- and a
+    # wrong box drawn confidently on a frame is worse than no box, because it
+    # invites the reader to trust it.
+    #
+    # Set SHOW_RIM_GEOMETRY (or pass --rim-geometry) to bring them back when the
+    # geometry is being worked on. Everything else on the frame -- the arc, the
+    # people, the cap dots, the shooter -- comes from measurements that are
+    # checked elsewhere and stays.
+    if rim is not None and SHOW_RIM_GEOMETRY:
         rx1, ry1, rx2, ry2 = rim
         cv2.ellipse(fr, (int((rx1 + rx2) / 2) - dx, int((ry1 + ry2) / 2) - dy),
                     (int((rx2 - rx1) / 2), int((ry2 - ry1) / 2)), rim_tilt, 0, 360,
@@ -428,11 +442,15 @@ def parse_args():
     p.add_argument("--shots", default="", help="comma-separated shot numbers; blank = all")
     p.add_argument("--limit", type=int, default=200)
     p.add_argument("--out", type=Path, default=ASSETS)
+    p.add_argument("--rim-geometry", action="store_true",
+                   help="draw the rim ellipse, net box and drop zone")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
+    global SHOW_RIM_GEOMETRY
+    SHOW_RIM_GEOMETRY = bool(args.rim_geometry)
     import cv2
     from ultralytics import YOLO
 
