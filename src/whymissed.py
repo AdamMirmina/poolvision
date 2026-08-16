@@ -31,29 +31,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clips
 import hoops
 import regress
-from parked import drop_parked
-from tracks import build_tracks
 
 TOL = 4.0
 
 
 def runs_near(hits, hoop, t, win=3.0):
-    """Every run the tracker builds near a time, longest first."""
-    h = clips._one_box_per_ball(hits.get(hoop, []))
-    h, _ = drop_parked(h)
-    out = []
-    for pts in build_tracks(h):
-        runs, cur = [], [pts[0]]
-        for p in pts[1:]:
-            prev = cur[-1]
-            if (p["t"] - prev["t"] > clips.MAX_GAP_S
-                    or not (p["y"] >= prev["y"] - clips.JITTER_PX)):
-                runs.append(cur)
-                cur = [p]
-            else:
-                cur.append(p)
-        runs.append(cur)
-        out += [r for r in runs if abs(r[0]["t"] - t) <= win or abs(r[-1]["t"] - t) <= win]
+    """The runs the PIPELINE built near a time, longest first.
+
+    Read from clips.BUILT rather than rebuilt here. The first version
+    reimplemented the run-splitting, drifted from it, and reported a 359-point
+    run where the pipeline's own trace showed nothing above 45 -- a diagnostic
+    describing a parallel universe. Same duplicate-logic trap as the two color
+    maps and the two definitions of a shot line.
+    """
+    out = [r for h, r in clips.BUILT
+           if h == hoop and (abs(r[0]["t"] - t) <= win or abs(r[-1]["t"] - t) <= win)]
     return sorted(out, key=len, reverse=True)
 
 
@@ -69,6 +61,8 @@ def main():
         clips.RIG_RIMS, clips.RIG_DROP = rig.rims, rig.drop or {}
         clips._ZONES.clear()
         clips.EXPLAIN.clear()
+        clips.BUILT.clear()
+        clips.TRACE = (0, 10 ** 9, None)
 
         hits, calls = {}, []
         for hp in hitfiles:
@@ -78,6 +72,7 @@ def main():
             for h, d in clips.cluster(raw["hits"], 1.0, 3, video=None):
                 calls.append({"t": d[0]["t"], "hoop": h})
 
+        clips.TRACE = None
         key = json.loads((regress.ROOT / "labels" / keyfile).read_text(encoding="utf-8"))
         ts = [x["t"] for v in hits.values() for x in v]
         lo, hi = (min(ts), max(ts)) if ts else (0, 0)
@@ -92,9 +87,20 @@ def main():
                 [x for x in hits.get(s["hoop"], []) if abs(x["t"] - s["t"]) <= 3]))
             rs = runs_near(hits, s["hoop"], s["t"])
             best = len(rs[0]) if rs else 0
+            # The reason for the BIGGEST rejected run near the shot, not the
+            # first one in the list. Reporting the first produced nonsense that
+            # read like a pipeline bug -- a 359-point run "rejected for too few
+            # detections" -- when it was simply a different, tiny run nearby that
+            # happened to be logged earlier. A diagnostic that mislabels its own
+            # finding is worse than no diagnostic.
             near = [e for e in clips.EXPLAIN
                     if e[1] == s["hoop"] and abs(e[0] - s["t"]) <= TOL]
-            why = near[0][2] if near else "no run built at all"
+
+            def _pts(e):
+                head = e[3].split()[0] if e[3] else "0"
+                return int(head) if head.isdigit() else 0
+            near.sort(key=_pts, reverse=True)
+            why = f"{near[0][2]} ({_pts(near[0])} pts)" if near else "no run built at all"
             # A shot seen fewer than a dozen times is a DETECTOR problem; no gate
             # change reaches it. Called out separately so it is never mistaken
             # for a rule that needs loosening.

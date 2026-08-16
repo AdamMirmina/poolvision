@@ -232,11 +232,14 @@ RIG_RIMS: dict = {}
 
 EXPLAIN = []          # (t, hoop, reason, detail) for every run a gate rejected
 TRACE = None          # (t0, t1, hoop) -- follow runs in this window through every stage
+BUILT = []            # every run the tracker actually built, when TRACE is set
 
 
 def _tr(stage, hoop, r, note=""):
     if not TRACE:
         return
+    if stage == "built":
+        BUILT.append((hoop, r))
     t0, t1, th = TRACE
     if th and hoop != th:
         return
