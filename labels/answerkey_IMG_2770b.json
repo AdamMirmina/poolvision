@@ -1,0 +1,199 @@
+{
+ "video": "IMG_2770.MOV",
+ "marked_by": "review",
+ "marked_on": "2026-08-11",
+ "covers": [
+  660,
+  1020
+ ],
+ "how": "Marked blind in the panel's pause-to-mark UI, against a tape carrying no model output.",
+ "why_it_matters": "The only ground truth on the project that no rule has been fitted to. Every other key was consumed: 2528 was tuned on, 2482 and the marked minute were consumed when rules changed based on their results, and the first 2770 window was consumed by the frame-rate cap sweeps which scored across all cases. This window postdates all of it.",
+ "timing_caveat": null,
+ "shots": [
+  {
+   "t": 676,
+   "at": "11:16",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink",
+   "dunk": true
+  },
+  {
+   "t": 689,
+   "at": "11:29",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 698,
+   "at": "11:38",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 706,
+   "at": "11:46",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 708,
+   "at": "11:48",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 720,
+   "at": "12:00",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 754,
+   "at": "12:34",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 769,
+   "at": "12:49",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 787,
+   "at": "13:07",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 797,
+   "at": "13:17",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "pink"
+  },
+  {
+   "t": 806,
+   "at": "13:26",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 847,
+   "at": "14:07",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 863,
+   "at": "14:23",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "pink",
+   "dunk": true
+  },
+  {
+   "t": 880,
+   "at": "14:40",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 891,
+   "at": "14:51",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 900,
+   "at": "15:00",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 909,
+   "at": "15:09",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 918,
+   "at": "15:18",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 923,
+   "at": "15:23",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "orange"
+  },
+  {
+   "t": 933,
+   "at": "15:33",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "red"
+  },
+  {
+   "t": 949,
+   "at": "15:49",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 960,
+   "at": "16:00",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 971,
+   "at": "16:11",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 988,
+   "at": "16:28",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "blue"
+  },
+  {
+   "t": 1015,
+   "at": "16:55",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "white",
+   "dunk": true
+  }
+ ],
+ "not_shots": [],
+ "ambiguous": [
+  {
+   "at": "12:34",
+   "note": " i'd call this a pass but it's very ambiguous. wouldn't be upset if model called a shot here"
+  }
+ ]
+}

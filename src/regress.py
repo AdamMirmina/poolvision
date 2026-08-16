@@ -52,6 +52,11 @@ CASES = [
     # postdates every rule in the pipeline. Third camera, nine players, and dunks
     # are a third of the play -- 8 of 23, against one in everything else combined.
     ("2770 new camera + dunks (HELD OUT)", "IMG_2770.MOV", ["out/key_2770.json"], "answerkey_IMG_2770.json"),
+    # THE only unfitted case. Every other key has been tuned against, including
+    # the first 2770 window, which the frame-rate sweeps consumed by scoring
+    # across all cases. 25 shots, 8 cap colors, 3 dunks, marked after every rule
+    # currently in the pipeline was already written.
+    ("2770b TRULY held out, 11:00-17:00", "IMG_2770.MOV", ["out/key_2770b.json"], "answerkey_IMG_2770b.json"),
 ]
 
 TOL = 4.0
