@@ -37,6 +37,15 @@ def hms(t):
     return f"{int(t) // 60}:{int(t) % 60:02d}"
 
 
+def _cap(s):
+    """Who took it, by cap color.
+
+    Reads `shooter_cap` and falls back to `shooter`: the answer keys used to name
+    people, and were rewritten to name cap colors when the repo went public.
+    """
+    return s.get("shooter_cap") or s.get("shooter") or "?"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--key", default="labels/answerkey_IMG_2528.json")
@@ -117,9 +126,9 @@ def main():
     print(f"extra   {len(extra)} calls nobody marked")
     for s, c in found:
         print(f"  HIT   {s['at']} {s['hoop']:5s} {s['outcome']:7s} "
-              f"{s['shooter']:5s} -> called {hms(c['t'])}")
+              f"{_cap(s):5s} -> called {hms(c['t'])}")
     for s in missed:
-        print(f"  MISS  {s['at']} {s['hoop']:5s} {s['outcome']:7s} {s['shooter']}")
+        print(f"  MISS  {s['at']} {s['hoop']:5s} {s['outcome']:7s} {_cap(s)}")
     for c in extra:
         print(f"  EXTRA {hms(c['t'])} {c.get('hoop') or '?'}")
 
@@ -142,7 +151,8 @@ def main():
     print("  existing make/miss and cap readers onto these calls is the next")
     print("  step, and doing it before detection is trustworthy would just")
     print("  produce another number computed over a biased sample.")
-    print(f"  ({key['caution_on_attribution']})")
+    if key.get("caution_on_attribution"):
+        print(f"  ({key['caution_on_attribution']})")
     return 0
 
 
