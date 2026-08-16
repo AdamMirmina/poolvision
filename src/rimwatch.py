@@ -78,6 +78,9 @@ def parse_args():
     # Settable so the resume path can actually be TESTED. A feature whose only
     # trigger is "wait an hour then pull the plug" does not get tested, and an
     # untested resume is worse than none: it would restore silently wrong state.
+    p.add_argument("--device", default="",
+                   help="intel:gpu runs on the Iris Xe through OpenVINO, "
+                        "about 4.6x faster than the CPU. Empty = CPU torch.")
     p.add_argument("--ckpt-every", type=int, default=1800,
                    help="frames between checkpoints")
     p.add_argument("--out", type=Path, default=Path("out/rimwatch.json"))
@@ -93,6 +96,35 @@ def log(m):
     print(f"[{time.strftime('%H:%M:%S')}] {m}", flush=True)
 
 
+def _load(weights, args):
+    """Load a model, on the Iris Xe through OpenVINO when --device asks for it.
+
+    This laptop has no CUDA card and torch is the CPU-only build, so every scan
+    until now ran on the CPU at about 1.2 s per inference. At two inferences a
+    frame that is roughly twenty hours for one six-minute window, which is what
+    actually limited how much footage could be evaluated.
+
+    The iGPU runs the same weights at 254 ms, 4.6x faster. Measured agreement
+    against the CPU on 24 canvases: every box the iGPU found matched a CPU box
+    within 6px, and it found two more out of 115. That matters more than the
+    speed -- a held-out score computed with a detector that sees different things
+    is not comparable to the score the CPU pipeline produced, so the swap is only
+    legitimate because the boxes are the same. src/ovbench.py is the measurement
+    and re-runs in a couple of minutes if this ever needs re-checking.
+    """
+    from ultralytics import YOLO
+    w = Path(weights)
+    if not args.device:
+        return YOLO(str(w))
+    if w.suffix == ".pt":
+        ov = w.parent / (w.stem + "_openvino_model")
+        if not ov.exists():
+            log(f"exporting {w.name} to openvino at imgsz {args.imgsz} (one time)")
+            YOLO(str(w)).export(format="openvino", imgsz=args.imgsz)
+        w = ov
+    return YOLO(str(w), task="detect")
+
+
 def main():
     args = parse_args()
     import cv2
@@ -105,15 +137,16 @@ def main():
         px, py = (int(v) for v in args.pad.split(","))
         rig = hoops.Rig(rims=rig.rims, crops=rig.crops, pool=rig.pool,
                         dets={k: hoops._crop_around(v, px, py) for k, v in rig.rims.items()})
-    model = YOLO(args.model)
+    model = _load(args.model, args)
     fine = None
     if args.fine:
         fw = ROOT / 'out/balltrain/ball/weights/best.pt'
         if fw.exists():
-            fine = YOLO(str(fw))
+            fine = _load(fw, args)
             print(f'second look: {fw.name}')
         else:
             print('no fine-tuned weights; stock only')
+    dev = {"device": args.device} if args.device else {}
     cap = cv2.VideoCapture(str(args.video))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     # 0 means the end of the file, so the default really is "all of it".
@@ -226,7 +259,8 @@ def main():
                 x1, y1, x2, y2 = det[name]
                 canvas[offs[name]:offs[name] + (y2 - y1), 0:x2 - x1] = fr[y1:y2, x1:x2]
             r = model.predict(canvas, conf=args.conf, verbose=False,
-                              classes=[SPORTS_BALL], imgsz=args.imgsz)[0]
+                              classes=[SPORTS_BALL], imgsz=args.imgsz,
+                              **dev)[0]
             # Second look with the fine-tune where stock found nothing.
             #
             # Four of the twelve shots marked as missed had NO ball sighting
@@ -240,7 +274,7 @@ def main():
             # and its scores never exceed 0.25, so it needs its own low threshold.
             if fine is not None and (r.boxes is None or not len(r.boxes)):
                 rf = fine.predict(canvas, conf=FINE_CONF, verbose=False,
-                                  imgsz=args.imgsz)[0]
+                                  imgsz=args.imgsz, **dev)[0]
                 if rf.boxes is not None and len(rf.boxes):
                     r = rf
             if r.boxes is not None and len(r.boxes):
