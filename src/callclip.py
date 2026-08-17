@@ -77,6 +77,20 @@ def draw(fr, dets, t, crop):
         r = max(14, int(d["w"] * 0.8))
         cv2.circle(img, c, r + 3, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.circle(img, c, r, (60, 235, 245), 3, cv2.LINE_AA)
+    elif seen and t > dets[-1]["t"]:
+        # After the run ends, hold a marker where it ended.
+        #
+        # Some calls rest on very little: one of these is 4 sightings spanning
+        # 0.1 seconds, which at 60fps is six frames of ring in a four-second
+        # clip. Asking someone to judge a flash they can easily miss is the same
+        # mistake as the windows this file was written to replace, one level
+        # smaller. The held marker also makes the flimsiness itself visible,
+        # which is information about the call rather than a distraction from it.
+        d = dets[-1]
+        c = (int(d["x"] - x0), int(d["y"] - y0))
+        r = max(14, int(d["w"] * 0.8))
+        cv2.circle(img, c, r + 3, (0, 0, 0), 2, cv2.LINE_AA)
+        cv2.circle(img, c, r, (110, 190, 200), 2, cv2.LINE_AA)
     return img
 
 
