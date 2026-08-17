@@ -23,9 +23,16 @@
 # PowerShell variable names are case-INSENSITIVE, so `$album = $null` silently
 # wiped `$Album`, the name being searched for, and every folder was then compared
 # against null. Renamed so the two can't collide.
-$AlbumName = "202608_a"
+#
+# Which album and which files, though, change every session, and editing the
+# script each time is how it ended up chasing a name that was two transfers old.
+# Environment variables DO bind under -File, unlike a param block, so they are
+# the way to pass them: run list-phone.ps1 first, then
+#   PULL_ALBUM=202608_a PULL_NAMES=IMG_2932.MOV powershell -File scripts/pull-footage.ps1
+# The literals below stay only as the fallback.
+$AlbumName = if ($env:PULL_ALBUM) { $env:PULL_ALBUM } else { "202608_a" }
 $Dest  = "C:\dev\poolvision\footage"
-$Names = @("IMG_2770.MOV")
+$Names = if ($env:PULL_NAMES) { $env:PULL_NAMES -split "," } else { @("IMG_2770.MOV") }
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null

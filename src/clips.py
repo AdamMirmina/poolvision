@@ -142,7 +142,7 @@ def parse_args():
 
 
 JITTER_PX = 25      # detector wobble tolerated without calling it a direction change
-MIN_DROP_PX = 150   # a real descent, not the ball jiggling in someone's hands
+MIN_DROP_PX = 325   # a real descent, not the ball jiggling in someone's hands
 # ...or, for a dunk, enough consecutive sightings at the hoop to mean the ball
 # was really brought there. Set from the marked tape: the two clear dunks it
 # missed ran 16 and 13 detections; the false positive review flagged at 4:10
