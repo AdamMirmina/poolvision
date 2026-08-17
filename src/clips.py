@@ -201,7 +201,8 @@ RING_NEAR = 0.6      # rim widths from the ring center, at closest approach
 RING_FALL_PX = 450   # and it must drop this far afterwards
 # Two calls at one hoop this close together are one shot seen twice. A real
 # second attempt needs the ball to come back out and be shot again.
-MERGE_CALLS_S = 2.5
+import os as _os
+MERGE_CALLS_S = float(_os.environ.get("MERGE_CALLS_S", 2.5))
 # GRAVITY. A ball in free flight accelerates; a ball someone is carrying moves at
 # wading speed. This is the one discriminator on the project that is physics
 # rather than geometry, and it separates the case geometry cannot touch: the 10:40, "one player got back in the pool with it", where the ball really does descend

@@ -48,6 +48,16 @@ class Rig:
     """
     rims: dict[str, tuple[int, int, int, int]]
     crops: dict[str, tuple[int, int, int, int]]
+    # Past this many seconds the cap colors are gone and attribution must not
+    # be attempted, even though the ball is still findable. review, on IMG_2932:
+    # "36:00 could be fine ... but attribution is probably not doable after
+    # 32:00." Two different cutoffs because they depend on different things --
+    # a ball is found by standing out in brightness, a cap is identified by hue,
+    # and saturation collapses first as the light goes.
+    #
+    # A field rather than a note, because a note is something a later session
+    # reads after it has already scanned. None means the whole recording is fine.
+    attribution_until: float | None = None
     dets: dict[str, tuple[int, int, int, int]] | None = None
     pool: tuple[int, int, int, int] = (1150, 250, 3500, 1750)
     # Per hoop, the two image points the three-point boundary runs through, taken
@@ -337,6 +347,9 @@ RIGS["IMG_2932.MOV"] = Rig(
     # The grass, fence and far deck along the left edge are places the ball
     # cannot be. Read off the averaged frame for THIS camera position.
     pool=(300, 0, 3840, 2160),
+    # 44.7 minutes from 7pm into the dark. Detection is good to about 36:00,
+    # cap color only to 32:00.
+    attribution_until=32 * 60,
 )
 
 RIGS["IMG_2770.MOV"] = Rig(
