@@ -312,6 +312,33 @@ def rig_for(video: str) -> Rig:
 # and borrowing this entry would silently point the right-hoop detector at empty
 # deck. hoops.rig_for raises for it, which is the correct outcome until someone
 # does that work.
+# IMG_2932, 2026-08-16 evening. A DIFFERENT camera position from every earlier
+# rig: higher and much wider, with the whole pool in frame, so nothing from the
+# 0810 rig transfers and borrowing it would point both detectors at open water.
+#
+# newrig.py found ONE candidate here and it was a 44x32 fragment of the left rim,
+# with the right hoop missed entirely -- the rims are smaller in a wide shot and
+# the light is failing through the recording, which is exactly the condition its
+# color threshold is weakest in. So these are measured by eye off a full-res
+# crop of each hoop, which is what the script's own "LOOK at it before trusting
+# any of these" is for.
+#
+# Left is nearer the camera and so larger in frame than right, which is the
+# opposite of the 0810 rig and worth not 'fixing'.
+_S0816_RIMS = {
+    "left": (740, 908, 943, 997),
+    "right": (3333, 650, 3493, 720),
+}
+
+RIGS["IMG_2932.MOV"] = Rig(
+    rims=_S0816_RIMS,
+    crops={k: _crop_around(v, 430, 400) for k, v in _S0816_RIMS.items()},
+    dets={k: _crop_around(v, 430, 400) for k, v in _S0816_RIMS.items()},
+    # The grass, fence and far deck along the left edge are places the ball
+    # cannot be. Read off the averaged frame for THIS camera position.
+    pool=(300, 0, 3840, 2160),
+)
+
 RIGS["IMG_2770.MOV"] = Rig(
     rims=_S0810_RIMS,
     crops={k: _crop_around(v, 430, 400) for k, v in _S0810_RIMS.items()},
