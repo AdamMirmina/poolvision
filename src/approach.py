@@ -48,7 +48,10 @@ def rows_for(hits_p, key_p, video, tol=4.0):
                       # it up. Normalized by the starting gap so a run that began
                       # far away is not rewarded just for being long.
                       "closed": (d[0] - min(d)) / max(1.0, d[0]),
-                      "nearest": min(d)})
+                      # In rim-widths, so it means the same thing on a near hoop
+                      # and a far one. A rig where the two rims differ by 25% in
+                      # pixels would otherwise get two different gates.
+                      "nearest": min(d) / max(1.0, rig.rims[hoop][2] - rig.rims[hoop][0])})
     pairs = sorted((abs(c["t"] - s["t"]), ci, si)
                    for ci, c in enumerate(calls) for si, s in enumerate(marked)
                    if abs(c["t"] - s["t"]) <= tol and (not c["hoop"] or c["hoop"] == s["hoop"]))
@@ -79,19 +82,33 @@ if __name__ == "__main__":
         if R: print(f"   real  closed-gap  min {R[0]:.2f}  median {R[len(R)//2]:.2f}")
         if F: print(f"   false closed-gap  min {F[0]:.2f}  median {F[len(F)//2]:.2f}")
     print()
-    best, bf = 0, -1
-    for i in range(0, 100, 5):
-        thr = i / 100
-        tp = sum(1 for x in fit if x["real"] and x["closed"] >= thr)
-        fp = sum(1 for x in fit if not x["real"] and x["closed"] >= thr)
-        tot = sum(1 for x in fit if x["real"]) + fm
-        rec, prec = tp / tot, tp / max(1, tp + fp)
-        f1 = 2 * rec * prec / max(1e-9, rec + prec)
-        if f1 > bf: best, bf = thr, f1
-    print(f"best closed-gap threshold on the FIT SET: {best:.2f}")
+    # A shot either CLOSES the gap to the rim, or it was already at the rim when
+    # the detector first found it. The second half matters: some real shots score
+    # 0.00 on closed-gap purely because the ball is not seen until it arrives, and
+    # a rule with only the first half counts that detection limit as evidence of
+    # not-a-shot. It cost four real shots on the held-out window.
+    def keep(x, c, n):
+        return x["closed"] >= c or x["nearest"] <= n
+
+    tot_fit = sum(1 for x in fit if x["real"]) + fm
+    best, bf = (0.0, 0.0), -1
+    for ci in range(0, 100, 5):
+        for ni in range(0, 40, 2):
+            c, n = ci / 100, ni / 10
+            tp = sum(1 for x in fit if x["real"] and keep(x, c, n))
+            fp = sum(1 for x in fit if not x["real"] and keep(x, c, n))
+            rec, prec = tp / tot_fit, tp / max(1, tp + fp)
+            f1 = 2 * rec * prec / max(1e-9, rec + prec)
+            if f1 > bf:
+                best, bf = (c, n), f1
+    c, n = best
+    print(f"best on the FIT SET: closed >= {c:.2f} OR within {n:.1f} rim-widths")
+    tpf = sum(1 for x in fit if x["real"] and keep(x, c, n))
+    fpf = sum(1 for x in fit if not x["real"] and keep(x, c, n))
+    print(f"  fit  after: {tpf}/{tot_fit} recall, precision {tpf/max(1,tpf+fpf)*100:.0f}%")
     tp0 = sum(1 for x in ho if x["real"]); fp0 = sum(1 for x in ho if not x["real"])
-    tp1 = sum(1 for x in ho if x["real"] and x["closed"] >= best)
-    fp1 = sum(1 for x in ho if not x["real"] and x["closed"] >= best)
+    tp1 = sum(1 for x in ho if x["real"] and keep(x, c, n))
+    fp1 = sum(1 for x in ho if not x["real"] and keep(x, c, n))
     tot = tp0 + hm
     print(f"HELD OUT before: {tp0}/{tot} recall, precision {tp0/max(1,tp0+fp0)*100:.0f}% ({fp0} false)")
     print(f"HELD OUT after : {tp1}/{tot} recall, precision {tp1/max(1,tp1+fp1)*100:.0f}% ({fp1} false)")

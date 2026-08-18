@@ -26,6 +26,16 @@ const arg = (n, d) => {
 const FILE = path.resolve(arg("file", "out/marktape_fresh.mp4"));
 const TITLE = arg("title", "");
 const CALLS = arg("calls", "");
+// Where this tape sits in the ORIGINAL recording, in seconds.
+//
+// The marking panel reads rec.startAt and adds it to the video position, so
+// every timestamp review writes is a position in the source file rather than in
+// the excerpt. Without it a tape cut from 15:00 records its first shot as 0:07,
+// and nothing downstream can line that up with a scan. It was never passed
+// here, so it defaulted to zero on every tape not cut from the start of its
+// recording -- silently, since a plausible-looking timestamp is exactly what a
+// wrong offset produces.
+const START = Number(arg("start", "0")) || 0;
 const KEEP = process.argv.includes("--keep-others");
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
 
@@ -71,6 +81,7 @@ if (!KEEP) {
 const fd = new FormData();
 fd.append("video", new Blob([fs.readFileSync(FILE)], { type: "video/mp4" }), path.basename(FILE));
 fd.append("title", TITLE);
+fd.append("startAt", String(START));
 fd.append("active", "true");
 fd.append("calls", JSON.stringify(calls));
 
