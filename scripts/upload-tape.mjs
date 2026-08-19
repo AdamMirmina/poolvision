@@ -36,6 +36,13 @@ const CALLS = arg("calls", "");
 // recording -- silently, since a plausible-looking timestamp is exactly what a
 // wrong offset produces.
 const START = Number(arg("start", "0")) || 0;
+// Which cap colors are actually in this recording, comma separated.
+//
+// The panel falls back to blue,pink,white when this is absent, which is a
+// sensible default and silently wrong for any session with a different set: the
+// marking card then offers colors nobody is wearing and omits ones that are in
+// the water. IMG_2932 is black, white, purple and yellow.
+const CAPS = arg("caps", "").split(",").map((x) => x.trim()).filter(Boolean);
 const KEEP = process.argv.includes("--keep-others");
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";
 
@@ -82,6 +89,7 @@ const fd = new FormData();
 fd.append("video", new Blob([fs.readFileSync(FILE)], { type: "video/mp4" }), path.basename(FILE));
 fd.append("title", TITLE);
 fd.append("startAt", String(START));
+if (CAPS.length) fd.append("caps", JSON.stringify(CAPS));
 fd.append("active", "true");
 fd.append("calls", JSON.stringify(calls));
 

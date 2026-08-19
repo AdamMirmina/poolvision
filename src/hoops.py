@@ -58,6 +58,13 @@ class Rig:
     # A field rather than a note, because a note is something a later session
     # reads after it has already scanned. None means the whole recording is fine.
     attribution_until: float | None = None
+    # Which cap colors are in the water for this recording. Attribution has to
+    # choose between the caps actually present, not the ten the reader can name:
+    # a color nobody is wearing is a wrong answer the classifier can still give,
+    # and each one it can rule out is a real gain on a hard call in poor light.
+    # Empty means unknown, and callers should treat that as "all of them" rather
+    # than "none".
+    caps: tuple[str, ...] = ()
     dets: dict[str, tuple[int, int, int, int]] | None = None
     pool: tuple[int, int, int, int] = (1150, 250, 3500, 1750)
     # Per hoop, the two image points the three-point boundary runs through, taken
@@ -350,6 +357,7 @@ RIGS["IMG_2932.MOV"] = Rig(
     # 44.7 minutes from 7pm into the dark. Detection is good to about 36:00,
     # cap color only to 32:00.
     attribution_until=32 * 60,
+    caps=("black", "white", "purple", "yellow"),
 )
 
 RIGS["IMG_2770.MOV"] = Rig(
