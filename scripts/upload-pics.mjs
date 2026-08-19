@@ -1,9 +1,9 @@
 // Put stills on the judging panel, and take the previous set down.
 //
 // Standing instruction: if a visual is built for him to review, it belongs on
-// poolean temporarily, next to the box he types feedback into -- not sent as a
-// file and not previewed inline in chat. The panel is where he already is when
-// he judges the model, and a picture living anywhere else is a second place he
+// poolean temporarily, next to the box review types feedback into -- not sent as a
+// file and not previewed inline in chat. The panel is where the reviewing happens when
+// review judges the model, and a picture living anywhere else is a second place review
 // has to go.
 //
 //   node scripts/upload-pics.mjs --title "..." --caption "..." out/trace_*.jpg
@@ -34,7 +34,7 @@ const auth = await (await fetch(PB + "/api/collections/_superusers/auth-with-pas
 if (!auth.token) { console.error("auth failed"); process.exit(1); }
 const A = { Authorization: auth.token };
 
-// One active set at a time, so his feedback is never ambiguous about which
+// One active set at a time, so the feedback is never ambiguous about which
 // picture it refers to.
 const old = await (await fetch(
   PB + "/api/collections/vision_pics/records?filter=" + encodeURIComponent("active=true"),

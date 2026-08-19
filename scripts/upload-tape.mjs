@@ -70,7 +70,7 @@ if (CALLS && fs.existsSync(CALLS)) {
 }
 
 // Retire whatever is up now. Two active tapes means review does not know which one
-// his feedback is about.
+// the feedback is about.
 if (!KEEP) {
   const old = await (await fetch(
     PB + "/api/collections/vision_tapes/records?filter=" + encodeURIComponent("active=true"),

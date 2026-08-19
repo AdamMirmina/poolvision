@@ -95,7 +95,7 @@ frame -- all five faces pixelated, all five caps still perfectly readable.
 **Do NOT run it on everything by default.** It was written for a hypothetical
 nobody had raised, then applied to every artifact, which taxed each one for
 nothing -- blurring twelve short review clips cost over half an hour of CPU and
-delayed handing them to a reviewer. Review asked the right question: "why are we blurring
+delayed handing them over. The question worth asking was why blurring
 faces."
 
 Run it when someone has actually asked, and on stills opened in a CHAT, which go

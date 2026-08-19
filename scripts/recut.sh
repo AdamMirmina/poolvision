@@ -2,8 +2,8 @@
 # Re-cut the un-labeled videos with the capped match radius, and replace what's
 # in the review queue. 2481 is deliberately NOT here: review labeled 127 of its
 # 128 clips, and regenerating would strand ~39 of those answers on boundaries
-# that no longer exist. Duplicates he has already judged are cheaper than work
-# he has to redo.
+# that no longer exist. Duplicates review has already judged are cheaper than work
+# review has to redo.
 set -u
 cd "$(dirname "$0")/.."
 for v in IMG_2482 IMG_2483 IMG_2480; do

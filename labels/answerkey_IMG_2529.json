@@ -2,7 +2,7 @@
   "video": "IMG_2529.MOV",
   "marked_by": "review",
   "marked_on": "2026-08-09",
-  "how": "Marked across three sessions, each against a tape of the model's own calls. Weaker evidence than IMG_2528's key, which was marked blind, because a tape showing the model's output can only surface what he chose to correct -- so absence of a mark here is not proof there was no shot. The named false positives are the strong half: he watched those specific calls and said what each really was.",
+  "how": "Marked across three sessions, each against a tape of the model's own calls. Weaker evidence than IMG_2528's key, which was marked blind, because a tape showing the model's output can only surface what was chosen to correct -- so absence of a mark here is not proof there was no shot. The named false positives are the strong half: review watched those specific calls and said what each really was.",
   "windows": [
     {"from": 475, "to": 550, "note": "the marked minute. HELD OUT: no rule was tuned on this."},
     {"from": 630, "to": 650, "note": "the deck. Three model calls, no shots at all."},

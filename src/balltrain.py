@@ -1,7 +1,7 @@
 """Fine-tune the ball detector on this pool's own footage.
 
 The single highest-leverage thing left. Every ceiling reached so far is one
-failure wearing three hats: the detector loses the ball where it matters. the through-the-hoop rule is observable on 38% of makes, his overlap veto lands below
+failure wearing three hats: the detector loses the ball where it matters. the through-the-hoop rule is observable on 38% of makes, the overlap veto lands below
 chance, arcs stop before the ball lands.
 
 COCO's "sports ball" is a generic class trained on clean photographs of balls.

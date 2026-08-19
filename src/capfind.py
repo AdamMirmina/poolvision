@@ -1,7 +1,7 @@
 """Find the colored swim caps in a frame, as people.
 
 Five of the ten wrong attributions review commented on are the same failure: the
-shooter was never detected as a person, so no rule could pick him. Twice he says
+shooter was never detected as a person, so no rule could pick him. Twice review says
 why in the same breath -- "partially submerged but CAP and body and arm still
 visible", "green was behind white and not recognized as a person despite CAP
 visible".

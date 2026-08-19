@@ -77,7 +77,7 @@ sessions not to re-litigate it. It then cost the entire 2026-08-01 session.
 
 Measured properly, against the marked tape: IMG_2482 (crop 2.0-2.6 rim-widths
 of margin) gets 565 ball sightings a MINUTE. IMG_2529 (crop 1.2-1.5) gets 54.
-Ten times fewer. Four of the five real shots he marked had ZERO sightings, and
+Ten times fewer. Four of the five marked shots had ZERO sightings, and
 the only two things the detector did see were a player holding the ball still at
 the rim -- which the shot logic then called shots.
 

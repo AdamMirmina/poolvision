@@ -84,16 +84,16 @@ def main():
         print(f"   {int(t)//60:d}:{int(t)%60:02d}  {h}")
 
     # The clock is the video's own timestamp, offset so it reads as the position
-    # in the ORIGINAL recording. review marks against that, so his timestamps and
+    # in the ORIGINAL recording. review marks against that, so the marked timestamps and
     # the pipeline's refer to the same thing without anyone converting.
     # This tape shows ONLY what the MODEL called. It must never draw the own
-    # marks: he watched a tape carrying his marks, reported "all shots are
+    # marks: review watched a tape carrying the marks, reported "all shots are
     # correctly identified", then caught the circularity himself -- "i was under
     # the impression that the model identified those shots when really you were
     # displaying what i had already claimed were shots."
     #
     # An artifact for judging the model can only show the model's output. The
-    # answer key stays on his side of the test.
+    # answer key stays on the side of the test.
     filters = [
         "scale=1280:-2",
         (f"drawtext=text='%{{pts\\:hms\\:{args.start:.0f}}}':"

@@ -6,7 +6,7 @@ each ruled out in conversation rather than on data. review killed two of them
 himself for reasons no amount of tuning would have fixed -- an airball can swish
 the net, and where a ball lands depends on the angle, not the outcome.
 
-Now there are 155 clips he judged personally, so the question can be answered
+Now there are 155 clips review judged personally, so the question can be answered
 properly: build features off the tracked trajectory, fit a model, and score it
 by cross-validation against the only baseline that matters -- always guessing
 "miss", which is right 66% of the time here.
@@ -99,10 +99,10 @@ def clip_track(hits: list[dict], t0: float, t1: float) -> list[dict] | None:
     #   biggest descent         79.5%, 0.839      (what this code did before)
     #   first visible descent   69.7%, 0.758
     #
-    # Review described the rule as "my labels correspond to the first one i see",
+    # The rule is that a label corresponds to the first shot seen,
     # and 41% of judged clips do hold more than one real descent, so this
     # mattered. But the measurement disagrees with the description by a wide
-    # margin, which says the shot he is actually judging is the one the clip is
+    # margin, which says the shot review is actually judging is the one the clip is
     # centered on -- an earlier descent caught in the lead padding reads as
     # context, not as the subject. Going with the data over the description,
     # and the gap is far too large to be noise.

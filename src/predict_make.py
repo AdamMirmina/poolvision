@@ -2,7 +2,7 @@
 
 makemiss.py trains and evaluates in one process and keeps nothing, which is fine
 for measuring the model and useless for using it. This fits on everything review
-has judged and predicts on a video he has not, so the diagnostic can show what
+has judged and predicts on a video review has not, so the diagnostic can show what
 the pipeline thinks happened alongside who it thinks shot it.
 
 The number is a probability, and it is shown as one. At 82% accuracy and 0.875

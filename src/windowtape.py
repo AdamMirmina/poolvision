@@ -123,7 +123,7 @@ def main():
 
         for mt, mh in marks:
             if 0 <= t - mt <= 2.0:
-                # "YOU MARKED" not "hand:". The old wording read as the model
+                # "YOU MARKED" rather than a name. The old wording read as the model
                 # naming the shooter -- review saw it and reported "they all said
                 # review although some were another player", and I spent a search looking for
                 # a name the pipeline does not have. It was this caption.

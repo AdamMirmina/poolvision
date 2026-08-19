@@ -58,7 +58,7 @@ def main():
 
     # Match each of the shots to the attribution row nearest in time. A row
     # with no answer still counts against the total -- "no answer" is a wrong
-    # answer from his side of the screen, and scoring only the confident ones is
+    # answer from the side of the screen, and scoring only the confident ones is
     # how every earlier number on this project flattered itself.
     used, pairs = set(), []
     for s in shots:

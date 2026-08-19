@@ -4,7 +4,7 @@
 // review asked whether pasting them in chat would be acceptable. It would not: the
 // conversation is written to a transcript that persists, and these are live
 // credentials for real data. A gitignored file gives the same convenience with
-// none of that, and matches how his cloud containers already get them.
+// none of that, and matches how cloud containers already get them.
 import fs from "fs";
 import path from "path";
 

@@ -56,10 +56,10 @@ def parse_args():
     p.add_argument("--conf", type=float, default=0.10)
     p.add_argument("--fine", action="store_true",
                    help="second look with the fine-tuned ball detector")
-    # 1600. Measured on the minute marked by hand, at the five shots he
+    # 1600. Measured on the minute marked by hand, at the five shots review
     # confirmed are real, with the widened crop:
     #
-    #   imgsz  640    256 sightings in the window, 1 of his 5 shots seen
+    #   imgsz  640    256 sightings in the window, 1 of the 5 shots seen
     #   imgsz  960    306 sightings, 5 of 5
     #   imgsz 1600    858 sightings, 5 of 5
     #

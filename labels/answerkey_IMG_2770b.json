@@ -82,7 +82,7 @@
    "outcome": "miss",
    "shooter_cap": "",
    "blocked": true,
-   "note": "blocked shot; did not make progress towards the basket"
+   "note": "blocked shot; judged: did not make progress towards the basket"
   },
   {
    "t": 787,
@@ -210,7 +210,7 @@
  "ambiguous": [
   {
    "at": "12:34",
-   "note": " i'd call this a pass but it's very ambiguous. wouldn't be upset if model called a shot here"
+   "note": "judged: arguably this a pass but it's very ambiguous. acceptable either way if the model calls a shot here"
   }
  ],
  "note_on_provenance": "25 shots marked blind on continuous footage; 2 more added 2026-08-18 after review judged the model's false calls. PRECISION is corrected by that. RECALL is not fully corrected: only shots the model FOUND could be added this way, so the denominator is still short by any shot both the blind pass and the model missed."

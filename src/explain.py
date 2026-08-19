@@ -1,7 +1,7 @@
 """Why was there no call HERE? Ask the gates directly.
 
 review marks a shot the model missed and the useful question is which gate threw it
-away, not whether the ball was seen. The detector usually saw it: his 11:00 dunk
+away, not whether the ball was seen. The detector usually saw it: the 11:00 dunk
 had 256 sightings within six seconds and produced no call at all.
 
 Guessing at that from the outside has cost several rounds. This replays the real

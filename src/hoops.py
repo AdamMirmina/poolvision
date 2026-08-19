@@ -198,12 +198,12 @@ for _name in ("IMG_2528.MOV", "IMG_2529.MOV"):
         # detections against 229 -- which I wrote into RIG-SETUP as "settled, do
         # not re-litigate". the second marked tape shows what it cost: this
         # session gets 54 ball sightings a minute against IMG_2482's 565, ten
-        # times fewer, and 4 of his 5 marked shots had ZERO sightings.
+        # times fewer, and 4 of the 5 marked shots had ZERO sightings.
         #
         # A ball descending into the hoop crosses far more than 180px of vertical
         # space, so on this rig the approach happened ABOVE the crop and was never
         # looked at. The only ball that stays inside a small box is one a player
-        # is holding still at the rim, which is precisely the two false calls he
+        # is holding still at the rim, which is precisely the two false calls review
         # flagged: "it caught blue getting back in the pool with the ball in hand".
         dets={k: _crop_around(v, 430, 400) for k, v in _S0801_RIMS.items()},
         # Measured off the averaged frame by segmenting the water, then padded

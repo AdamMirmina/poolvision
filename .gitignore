@@ -67,3 +67,5 @@ docs/STATE.md
 
 AGENTS.md
 CLAUDE.md
+yolo11s_openvino_model/
+*_openvino_model/

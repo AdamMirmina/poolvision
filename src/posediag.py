@@ -5,13 +5,13 @@
 So one picture per shot carries the lot: who was seen, whose hands were up, how
 far each pair of hands was from the ball, which release was chosen, and the
 parabola the ball actually flew. Anything the pipeline believes and this image
-does not show is a thing he cannot catch, and he has caught several.
+does not show is a thing review cannot catch, and review has caught several.
 
 Drawn from shooter.scan/candidates directly rather than from a saved summary.
 The picture and the decision come out of the same call, so they cannot drift
-apart -- which they did once before, and it cost a whole round of his feedback:
-he judged a label that disagreed with a box, and every "no" became unusable
-because there was no telling which half he was rejecting.
+apart -- which they did once before, and it cost a whole round of the feedback:
+review judged a label that disagreed with a box, and every "no" became unusable
+because there was no telling which half review was rejecting.
 
     python src/posediag.py --video IMG_2482.MOV --shots 1,4,7,8
 """
@@ -60,9 +60,10 @@ GREEN = (40, 150, 30)   # darker, to hold against the water
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 AMBER = (40, 190, 250)
-# Wrists are colored by what they SAY, not by whose box they sit in. Right: a marker
+# Wrists are colored by what they SAY, not by whose box they sit in. A marker
 # that repeats the box's color carries no information the box did not already
 # give, and hands up or down is the single reading the whole rule turns on.
+# Yellow for up and blue for down, which read clearly against both water and deck.
 WRIST_UP = (60, 235, 245)     # yellow
 WRIST_DOWN = (235, 150, 60)   # blue
 LINE3 = (200, 120, 255)
@@ -77,7 +78,7 @@ def everyone_at(per_person, t):
     candidates() returns only those who cleared the release test, and drawing
     only those hides the failure worth finding: the whole point was that the
     real shooter was sometimes not boxed at all. A person the rule discarded
-    still has to appear, so he can point at them.
+    still has to appear, so review can point at them.
     """
     out = []
     for key, v in per_person.items():
@@ -353,11 +354,13 @@ def draw(fr, people, pick, flight, ball_track, t_rel, off=(0, 0), three=None,
         bx, by = int(at["x"]) - dx, int(at["y"]) - dy
         cv2.circle(fr, (bx, by), int(18 * S), WHITE, th, cv2.LINE_AA)
 
-    # EVERY person, not only the ones that cleared the release test.
+    # EVERY person, not only the ones that cleared the release test. The frame has
+    # to show every input the decision was made from, boxes, head line and cap
+    # level included, or it cannot be checked by eye.
     #
     # The prose caption that used to sit in a black band across the top is gone.
     # It said in three long lines what the marks already say, it covered the top
-    # of the frame, and he called it wordy and messy. Those facts now render as
+    # of the frame, and review called it wordy and messy. Those facts now render as
     # HTML under the picture, where they wrap and can be read without competing
     # with the image.
     placed = []

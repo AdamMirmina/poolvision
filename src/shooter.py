@@ -19,7 +19,7 @@ review changed the question four times, and each change is encoded here.
    The release is a SHAPE, not a distance: the ball rests at the hands, then a
    gap opens and keeps opening. A bystander the ball flies past shows the
    opposite, far then near then far. Minimum distance cannot tell those apart,
-   which is the failure he spotted -- the frame chosen was well after the ball
+   which is the failure review spotted -- the frame chosen was well after the ball
    had left the shooter's hands, with the ball merely passing someone else.
 
 3. "That frame is significantly after the ball left white's hands."
@@ -29,7 +29,7 @@ review changed the question four times, and each change is encoded here.
 
 4. "Since many hands up, you would go with the person whose hands are closest to
    ball on release." And, on the same frame: "the person who shot it isn't even
-   boxed as a person in this, but his hands are right next to the ball."
+   boxed as a person in this, but the hands are right next to the ball."
    Two separate fixes. The choice among hands-up candidates is now distance at
    release rather than latest release. And pose runs on a native-resolution
    window around the ball, because a shooter the detector never boxed cannot be
@@ -211,7 +211,7 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
 
     This is deliberately the ONE place the scan happens. The diagnostic pictures
     review reviews are drawn from this same function, so the image cannot show one
-    thing while the pipeline decides on another. An earlier round of his feedback
+    thing while the pipeline decides on another. An earlier round of the feedback
     was wasted on exactly that mismatch.
     """
     f_lo = max(0, int((float(t_descent) - LOOKBACK_S) * fps))
@@ -260,7 +260,7 @@ def scan(cap, fps, t_descent, det, pos, pool=(1150, 250, 3500, 1750)):
 
         # Pose on a native-resolution window around the BALL, not the whole
         # frame. review found the failure this fixes: "the person who shot it isn't
-        # even boxed as a person in this, but his hands are right next to the
+        # even boxed as a person in this, but the hands are right next to the
         # ball." No box means no candidate, so no rule can pick the one person
         # who actually shot.
         #
@@ -541,7 +541,7 @@ def _people_at(per_person, t, hands_up_only=False):
 
     `hands_up_only` keeps the first rule in force. It was silently dropped
     when attribution moved to the ball's flight: the origin was matched against
-    whoever was nearest it, hands or no hands, and he caught the result straight
+    whoever was nearest it, hands or no hands, and review caught the result straight
     away -- "in LOTS of the images you're showing to me, it's not iding the right
     person even when they're the only one with hands up."
 
@@ -704,7 +704,7 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
             # almost never a tie to break.
             #
             # So admission widens, and facing prunes the clearly-turned-away.
-            # Deliberately soft, on his caveat that a "shooter could theoretically
+            # Deliberately soft, on the caveat that a "shooter could theoretically
             # shoot backwards": it only prunes when someone else is clearly facing
             # the hoop, it needs a decisive reading on both sides rather than a
             # marginal one, and it never empties the candidate set.
@@ -735,7 +735,7 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
                 # two: "if they're opposite sides, they're facing forward or back
                 # and probably aren't the shooter." Square was being treated as
                 # neutral, which meant a straddler could still be chosen over
-                # someone squarely pointed at the hoop -- he caught exactly that,
+                # someone squarely pointed at the hoop -- review caught exactly that,
                 # a green box reading "square" while a neighbour read 100%.
                 out_ = {z[0] for z in scored
                         if z[3] is not None and (z[3] < FACE_AWAY or z[3] == 0.0)}
@@ -810,7 +810,7 @@ def attribute(ball_track, per_person, rig=None, hoop=None, trace=None, t_descent
                 # hundred pixels past the hands before it exits. review saw the
                 # result -- "should that star be on the ball at the point of
                 # release?" -- with the marker sitting beside the shooter rather
-                # than on the ball he was holding. The release is where the ball
+                # than on the ball review was holding. The release is where the ball
                 # was, so the walk-back ends at the closest approach to the
                 # wrists, and to the box only when no wrist was read.
                 snaps = sorted(per_person[pid]["at"], key=lambda tt: abs(float(tt) - t))

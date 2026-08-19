@@ -1,9 +1,9 @@
 // the judgments live in PocketBase. labels/allshots.json is a CACHE, and a
 // stale one is worse than none: every measurement in this repo reads it, so when
-// it lags, every reported number is computed on a fraction of his work and looks
+// it lags, every reported number is computed on a fraction of the marking and looks
 // completely normal.
 //
-// It lagged by 187 shots -- he had judged 415 and the file held 228 -- and the
+// It lagged by 187 shots -- review had judged 415 and the file held 228 -- and the
 // drop-zone sweeps, recall figures and veto precision quoted all afternoon were
 // all computed on 55% of the data. Caught in review: That was right.
 //

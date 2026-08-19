@@ -7,7 +7,7 @@
 // repo that uploads to EAS on every iOS build, and review clips are exactly that
 // kind of media.
 //
-// Labels review already called by hand are prefilled, so he isn't asked to judge
+// Labels review already called by hand are prefilled, so review isn't asked to judge
 // the same shot twice.
 //
 //   PB_EM=... PB_PW=... node scripts/upload-clips.mjs [--clips out/clips] [--labels labels/shots.csv]
@@ -54,7 +54,7 @@ async function api(method, p, token, body) {
   return { ok: r.ok, status: r.status, d };
 }
 
-// the hand calls, so a clip he's already judged arrives pre-labeled.
+// the hand calls, so a clip review's already judged arrives pre-labeled.
 function readLabels(file) {
   if (!fs.existsSync(file)) return [];
   const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("#"));

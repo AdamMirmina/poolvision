@@ -77,9 +77,9 @@ for (const c of clips) {
   if (APPLY) {
     const r = await api("PATCH", `/api/collections/vision_shots/records/${c.id}`, token, {
       label: want,
-      // "hand-called" = derived from his timestamps by an automatic mapping that has
+      // "hand-called" = derived from the marked timestamps by an automatic mapping that has
       // already been wrong once, so the UI treats it as a suggestion needing one tap
-      // to confirm. "hand" is reserved for a label he actually set in the app.
+      // to confirm. "hand" is reserved for a label actually set in the app.
       labeledBy: want ? "hand-called" : "",
       labeledAt: want ? Date.now() : 0,
       notes: L && L.clash ? `two conflicting hand calls (${L.time}) fall here; needs a human look` : "",

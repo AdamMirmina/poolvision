@@ -1,5 +1,5 @@
 // A home on the panel for still images, so a visual review needs to look at lands
-// where he already is instead of in a chat message he has to scroll back to.
+// where the reviewing happens instead of in a chat message that has to be scrolled back to.
 import { hydrate } from "./env.mjs";
 hydrate();
 const PB = process.env.PB_URL || "https://poolean-api.adammirmina.com";

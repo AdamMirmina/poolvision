@@ -42,7 +42,7 @@ for (const rec of mine) {
   const fd = new FormData();
   fd.set("capHue", String(a.hue));
   // Never overwrite an answer review has already given. Re-running this after a
-  // pipeline change would otherwise silently wipe his confirmations, which are
+  // pipeline change would otherwise silently wipe the confirmations, which are
   // the only ground truth attribution has.
   if (!rec.shooterOk) fd.set("shooterOk", "");
   fd.set("shooterClip", new Blob([fs.readFileSync(file)], { type: "video/mp4" }), path.basename(file));

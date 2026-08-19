@@ -7,8 +7,8 @@ moving centroid throws away the net, the backboard and the moment of contact,
 which is where a make and a near-miss actually differ.
 
 So before asking review to hand-judge another 185 clips, measure whether pixels
-carry signal the centroid does not -- on the clips he has ALREADY judged. If a
-pixel model clears 0.875 on the same data, more labeling is worth his time. If
+carry signal the centroid does not -- on the clips review has ALREADY judged. If a
+pixel model clears 0.875 on the same data, more labeling is worth the time. If
 it does not, more labeling of the same kind will not rescue it either and the
 answer is to change the input, not the volume.
 
@@ -42,8 +42,8 @@ def fetch():
     """Pull the exact mp4 review watched for every judged clip.
 
     Deliberately the uploaded file rather than a freshly cut one: IMG_2481's
-    clips were re-cut after he judged them, so a local re-cut no longer
-    corresponds one-to-one with his answers. Training on a clip he did not
+    clips were re-cut after review judged them, so a local re-cut no longer
+    corresponds one-to-one with the answers. Training on a clip review did not
     actually watch would pair the wrong pixels with the label.
     """
     import urllib.request

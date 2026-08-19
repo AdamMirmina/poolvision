@@ -2,7 +2,7 @@
 
 Every ceiling hit today traces to one thing: the detector loses the ball exactly
 where it matters. the through-the-hoop rule is only observable on 38% of
-makes, his overlap veto lands below chance, arcs stop before the ball lands. One
+makes, the overlap veto lands below chance, arcs stop before the ball lands. One
 cause, three symptoms.
 
 The obvious fix is a ball detector fine-tuned on this footage, and the obvious

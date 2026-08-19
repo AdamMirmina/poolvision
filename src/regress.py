@@ -2,7 +2,7 @@
 
 This exists because the same mistake has now happened twice: a rule was measured
 against the window in front of me, looked like an improvement, and quietly broke
-a window review had already judged. The separation rule scored 5/5 on his marked
+a window review had already judged. The separation rule scored 5/5 on the marked
 minute and 0 for 3 on the fresh five minutes. The drop zone killed every deck
 false positive and cost three right-hoop shots.
 
@@ -109,7 +109,7 @@ def main():
 
         # NEAREST first, not first-within-tolerance. the 5:55 and 5:58 shots
         # are three seconds apart, and the old order let the 5:55 mark swallow
-        # the call at 5:57.33 -- which is 0.67s from his 5:58 and 2.33s from his
+        # the call at 5:57.33 -- which is 0.67s from the 5:58 and 2.33s from the
         # 5:55 -- leaving 5:58 scored as a MISS on a shot the model had found.
         # That is the scorer inventing a failure, which is worse than missing a
         # real one: it sent this session chasing a dunk problem that was partly

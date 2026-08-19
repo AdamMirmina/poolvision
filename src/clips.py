@@ -148,7 +148,7 @@ MIN_DROP_PX = float(_os.environ.get("MIN_DROP_PX", 250))   # a real descent, not
 # ...or, for a dunk, enough consecutive sightings at the hoop to mean the ball
 # was really brought there. Set from the marked tape: the two clear dunks it
 # missed ran 16 and 13 detections; the false positive review flagged at 4:10
-# (ball never left his hand) is not near a hoop at all, so this does not
+# (ball never left the hand) is not near a hoop at all, so this does not
 # readmit it.
 CARRY_DETS = 5
 # ...and no more than this, or it is a person holding the ball, not a dunk.
@@ -168,7 +168,7 @@ SEP_BALL_WIDTHS = 3.0
 # lands on the zone's corner comes in, and the deck ball stays out until 1.8.
 # Set by sweeping against the 20-shot answer key rather than picked. Recall
 # rises steeply to 2.0 and then stops -- 17/20 at every value from 2.5 to 4.0 --
-# while false calls keep climbing and the deck window he already judged starts
+# while false calls keep climbing and the deck window review already judged starts
 # leaking. The curve:
 #
 #   grow   found   extra   deck FPs        grow   found   extra   deck FPs
@@ -453,7 +453,7 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # equivalent of a pass. maybe say shots have to be seen above the
                 # rim to be called shots?"
                 #
-                # This one condition kills every false positive he named, and
+                # This one condition kills every false positive review named, and
                 # they were five different-looking events: the ball held in
                 # white's hands (8:10-8:12), raised and lowered without release
                 # (8:42), carried out of the pool (8:22), a player standing on the
@@ -471,13 +471,13 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # sighting in the run sits below the ring even though the shot
                 # plainly went over it. The evidence is a few frames earlier.
                 # A CLEAR DOWNWARD PARABOLA, which is the own broadening of
-                # his above-the-rim rule: "cause im realizing now that airballs
+                # the above-the-rim rule: "cause im realizing now that airballs
                 # below the rim won't be counted."
                 #
                 # That is right, and the parabola is the better test because it
                 # describes what makes something a shot rather than where it
                 # happened to go. An airball that never reaches the ring still
-                # arcs. And it separates his false positives by their physics
+                # arcs. And it separates the false positives by their physics
                 # rather than by their position: a held ball does not move, a
                 # carried one drifts at walking pace, a flat bullet pass has
                 # almost no curvature, and a player standing on the deck has
@@ -496,10 +496,10 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # final drop -- so nothing in the window sits above the ring even
                 # though the shot plainly went over it. Image height is also not
                 # world height: a player on the deck BEHIND the right hoop appears
-                # above it while standing at ground level, which is why his 8:21
+                # above it while standing at ground level, which is why the 8:21
                 # false positive survived the rule.
                 #
-                # Restricted to the carried path it does exactly the job he
+                # Restricted to the carried path it does exactly the job review
                 # described -- a held, lifted or walked ball never clears the
                 # ring -- without touching shots that fall through it.
                 # Applied to EVERY run, not only carried ones. the named
@@ -539,7 +539,7 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 #   pass."
                 #
                 # Measured separately: separation alone gives 9 calls and all five
-                # of his real shots; above-rim alone gives 6 and loses one.
+                # of the real shots; above-rim alone gives 6 and loses one.
                 # Kept SEPARATION ALONE, on the numbers rather than on taste.
                 # Adding "must also arc or clear the ring" removes one false
                 # positive and costs a real shot (8:35, whose run has no arc fit,
@@ -555,7 +555,7 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
                 # This replaces the separation rule, which was wrong about the one
                 # case review explicitly warned about. A dunk NEVER separates: the
                 # ball is in the player's hands the whole way, measured at 0.0 ball
-                # widths for the entire run of his 11:00 dunk, so the rule threw it
+                # widths for the entire run of the 11:00 dunk, so the rule threw it
                 # away by construction.
                 #
                 # It also passed everything separation is blind to. All three false
@@ -734,8 +734,8 @@ def cluster(hits_by_hoop: dict, gap: float, min_dets: int, video=None):
     # flight, and runs from DIFFERENT tracks never meet the per-track merge
     # above, so they arrive here as separate events that merely sit close in
     # time. Scored against the answer key, three of four apparently-false calls were
-    # this: 16:36 one second from his 16:35, 18:19 and 20:01 landing on the same
-    # second as his marks. Not false positives at all, the same shot counted
+    # this: 16:36 one second from the 16:35, 18:19 and 20:01 landing on the same
+    # second as the marks. Not false positives at all, the same shot counted
     # twice.
     #
     # So near-in-time counts as well as overlapping. A genuine second attempt
