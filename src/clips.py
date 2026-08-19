@@ -185,7 +185,12 @@ ZONE_GROW = 2.0
 # five within 25px at t=804.03. Left alone they become parallel tracks of the
 # same flight, and one shot is reported as three or four. Boxes in the same frame
 # whose centers are within this many ball widths are the same ball.
-SAME_BALL = 1.2
+SAME_BALL = float(_os.environ.get("SAME_BALL", 1.2))
+# One ball per frame per hoop, keeping the most confident. There is only ever one
+# ball in play at a hoop, so this is true by construction -- but it throws away a
+# real second ball if one is ever in frame, so it stays measurable rather than
+# assumed.
+ONE_BOX = _os.environ.get("ONE_BOX", "") == "1"
 # A MISS, measured off two of them rather than imagined. The ball does NOT bounce
 # back up -- that was the first guess and it caught nothing while adding three
 # false calls. It arrives at the ring RISING, passes within a fifth of a rim
@@ -307,11 +312,19 @@ def _one_box_per_ball(hits):
     for _, group in by_t.items():
         kept = []
         for h in sorted(group, key=lambda z: -z["conf"]):
+            # Sized by each box's OWN width, not the widest in the frame.
+            # Widening it to the frame maximum looked right -- the fine-tune
+            # sprays small low-confidence boxes that a 30px radius cannot clear
+            # -- and cost two real shots on the densest recording, because a
+            # genuine second descent close to the first was then swallowed as a
+            # duplicate. Measured, not reasoned about.
             w = max(1.0, h.get("w", 60.0))
             if any(((h["x"] - k["x"]) ** 2 + (h["y"] - k["y"]) ** 2) ** 0.5
                    < SAME_BALL * w for k in kept):
                 continue
             kept.append(h)
+        if ONE_BOX and kept:
+            kept = [max(kept, key=lambda z: z["conf"])]
         out.extend(kept)
     return sorted(out, key=lambda z: z["t"])
 
