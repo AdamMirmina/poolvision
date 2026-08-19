@@ -1,0 +1,309 @@
+{
+ "video": "IMG_2932.MOV",
+ "window": [
+  900,
+  1320
+ ],
+ "shots": [
+  {
+   "t": 900,
+   "at": "15:00",
+   "hoop": "right",
+   "outcome": "airball",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 912,
+   "at": "15:12",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 927,
+   "at": "15:27",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 984,
+   "at": "16:24",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 986,
+   "at": "16:26",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple",
+   "dunk": true
+  },
+  {
+   "t": 996,
+   "at": "16:36",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1023,
+   "at": "17:03",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 1034,
+   "at": "17:14",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1041,
+   "at": "17:21",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 1045,
+   "at": "17:25",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1048,
+   "at": "17:28",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1055,
+   "at": "17:35",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1063,
+   "at": "17:43",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 1068,
+   "at": "17:48",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1071,
+   "at": "17:51",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1073,
+   "at": "17:53",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1080,
+   "at": "18:00",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1088,
+   "at": "18:08",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 1091,
+   "at": "18:11",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1093,
+   "at": "18:13",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1095,
+   "at": "18:15",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1102,
+   "at": "18:22",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1112,
+   "at": "18:32",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 1117,
+   "at": "18:37",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1119,
+   "at": "18:39",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1122,
+   "at": "18:42",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1124,
+   "at": "18:44",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1126,
+   "at": "18:46",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1135,
+   "at": "18:55",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1165,
+   "at": "19:25",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1172,
+   "at": "19:32",
+   "hoop": "left",
+   "outcome": "airball",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 1194,
+   "at": "19:54",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 1199,
+   "at": "19:59",
+   "hoop": "right",
+   "outcome": "airball",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1205,
+   "at": "20:05",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1216,
+   "at": "20:16",
+   "hoop": "right",
+   "outcome": "make",
+   "shooter_cap": "black"
+  },
+  {
+   "t": 1276,
+   "at": "21:16",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "yellow"
+  },
+  {
+   "t": 1280,
+   "at": "21:20",
+   "hoop": "right",
+   "outcome": "miss",
+   "shooter_cap": "white"
+  },
+  {
+   "t": 1286,
+   "at": "21:26",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 1287,
+   "at": "21:27",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple",
+   "dunk": true
+  },
+  {
+   "t": 1303,
+   "at": "21:43",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  },
+  {
+   "t": 1311,
+   "at": "21:51",
+   "hoop": "left",
+   "outcome": "make",
+   "shooter_cap": "purple"
+  }
+ ],
+ "excluded": [
+  {
+   "t": 1247,
+   "at": "20:47",
+   "hoop": "left",
+   "outcome": "miss",
+   "shooter_cap": "purple",
+   "note": "this shouldn't be counted as a shot bc the shooter was out of the pool and not in frame"
+  }
+ ],
+ "note_on_provenance": "Marked blind on continuous footage with only a clock on screen: no model output was visible. Nothing has been fitted to this."
+}
