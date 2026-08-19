@@ -198,6 +198,8 @@ APPROACH_MIN = float(_os.environ.get("APPROACH_MIN", 0.40))
 STRONG_CONF = float(_os.environ.get("STRONG_CONF", 0.85))
 STRONG_FALL_PX = float(_os.environ.get("STRONG_FALL_PX", 290.0))
 CARRY_APPROACH_MIN = float(_os.environ.get("CARRY_APPROACH_MIN", 0.10))
+# How near the rim counts as "already there", in rim widths.
+AT_RIM_W = float(_os.environ.get("AT_RIM_W", 0.8))
 # A MISS, measured off two of them rather than imagined. The ball does NOT bounce
 # back up -- that was the first guess and it caught nothing while adding three
 # false calls. It arrives at the ring RISING, passes within a fifth of a rim
@@ -800,6 +802,17 @@ def _went_at_the_hoop(hoop, dets):
     # ones 0.03 -- so the honest fix is a lower threshold rather than a
     # different test.
     if closed >= (CARRY_APPROACH_MIN if carried else APPROACH_MIN):
+        return True
+    # A ball first seen ALREADY at the rim has no approach left to measure, and
+    # rejecting it counts a detection limit as evidence of not-a-shot. One real
+    # shot sits 0.79 rim widths out with closed=0.00 for exactly that reason.
+    #
+    # The threshold is tight on purpose. Measured over the 45 calls this gate
+    # rejects, 0.8 rim widths rescues 3 real for 1 false; 1.0 rescues 4 for 3;
+    # 1.6 rescues 6 for 15. An earlier version of this clause admitted anything
+    # ENDING near the rim with no distance bound at all, which readmitted every
+    # false call and erased the whole gain.
+    if min(ds) <= AT_RIM_W * rw:
         return True
     span = max(p["y"] for p in dets) - min(p["y"] for p in dets)
     peak = max(p["conf"] for p in dets)
