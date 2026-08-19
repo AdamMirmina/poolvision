@@ -240,7 +240,18 @@ MIN_PEAK_FALL = 1200.0
 FPS_SPEED_CAP = 1.2
 MAX_GAP_S = 0.6     # a longer blackout than this ends the descent
 END_NEAR_RIM = 3.2  # where a descent must finish, in rim widths, to be a shot
-BOUNCE_GAP_S = 1.1  # a second descent this soon at the same hoop is the same shot
+# A second descent this soon at the same hoop is the same shot.
+#
+# Was 1.1s, which is long enough to chain CONSECUTIVE shots during repeat
+# shooting: four marked shots at 18:39, 18:42, 18:44 and 18:46 all collapsed
+# into one call carrying 124 detections. The rise between one drill shot and the
+# next takes about a second, so 1.1 spans it.
+#
+# Note this is a different knob from MERGE_CALLS_S, which was swept from 2.5
+# down to 0.6 with no effect on recall and sent the whole investigation the
+# wrong way -- the chaining happens here, when runs are joined, not later when
+# calls are merged.
+BOUNCE_GAP_S = float(_os.environ.get("BOUNCE_GAP_S", 0.7))
 
 
 RIG_RIMS: dict = {}

@@ -26,12 +26,12 @@ from __future__ import annotations
 import os as _os
 from collections import defaultdict
 
-MATCH_PX = 150      # a ball moves ~15-60 px/frame here; 150 tolerates a fast throw
-MAX_MISS = 8        # frames a track survives unmatched (~0.27s of occlusion)
-MIN_TRACK = 3       # shorter than this is noise, not an object
-PREDICT_CAP = 5     # frames of velocity to extrapolate across a gap, at most
-GAP_SLACK_PX = 30   # extra match radius per frame of gap
-MAX_RADIUS_PX = 260 # ceiling on that growth -- see below
+MATCH_PX = float(_os.environ.get("MATCH_PX", 150))      # a ball moves ~15-60 px/frame here; 150 tolerates a fast throw
+MAX_MISS = int(_os.environ.get("MAX_MISS", 8))        # frames a track survives unmatched (~0.27s of occlusion)
+MIN_TRACK = int(_os.environ.get("MIN_TRACK", 3))       # shorter than this is noise, not an object
+PREDICT_CAP = int(_os.environ.get("PREDICT_CAP", 5))     # frames of velocity to extrapolate across a gap, at most
+GAP_SLACK_PX = float(_os.environ.get("GAP_SLACK_PX", 30))   # extra match radius per frame of gap
+MAX_RADIUS_PX = float(_os.environ.get("MAX_RADIUS_PX", 260)) # ceiling on that growth -- see below
 # Confidence a detection needs to START a track, as opposed to extend one.
 #
 # Starting a track asserts a new object exists; extending one only says an object
