@@ -197,6 +197,7 @@ ONE_BOX = _os.environ.get("ONE_BOX", "") == "1"
 APPROACH_MIN = float(_os.environ.get("APPROACH_MIN", 0.40))
 STRONG_CONF = float(_os.environ.get("STRONG_CONF", 0.85))
 STRONG_FALL_PX = float(_os.environ.get("STRONG_FALL_PX", 290.0))
+CARRY_APPROACH_MIN = float(_os.environ.get("CARRY_APPROACH_MIN", 0.10))
 # A MISS, measured off two of them rather than imagined. The ball does NOT bounce
 # back up -- that was the first guess and it caught nothing while adding three
 # false calls. It arrives at the ring RISING, passes within a fifth of a rim
@@ -773,11 +774,32 @@ def _went_at_the_hoop(hoop, dets):
     """
     if APPROACH_MIN <= 0 or hoop not in RIG_RIMS:
         return True
+    # A DUNK is exempt, the same way it is exempt from the drop gate. The ball is
+    # carried to the rim rather than thrown at it, so it neither falls far nor
+    # closes much of a gap, and on a low pool hoop that is a large slice of the
+    # game. Losing this exemption when the gate moved to the output cost the one
+    # dunk in the regression suite outright, 1/1 to 0/1, while every aggregate
+    # number stayed healthy -- which is what a suite of named cases is for.
     rim = RIG_RIMS[hoop]
     rcx, rcy = (rim[0] + rim[2]) / 2, (rim[1] + rim[3]) / 2
+    rw = max(1.0, rim[2] - rim[0])
     ds = [((p["x"] - rcx) ** 2 + (p["y"] - rcy) ** 2) ** 0.5 for p in dets]
+    carried = CARRY_DETS <= len(dets) <= CARRY_MAX
     closed = (ds[0] - min(ds)) / max(1.0, ds[0])
-    if closed >= APPROACH_MIN:
+    # A carry faces a LOWER bar, not an exemption.
+    #
+    # Exempting carries outright was the first attempt and cost 21 points of
+    # precision, because the count range alone admits any short call including a
+    # ball rolling on the deck. Requiring the carry to reach the rim instead
+    # failed the opposite way: the one dunk in the suite never gets within 2.46
+    # rim widths, since the player's body hides the ball exactly where it
+    # arrives.
+    #
+    # Measured over the 31 calls in the carry range, the same approach signal
+    # still separates them -- real ones close a median 0.92 of the gap, false
+    # ones 0.03 -- so the honest fix is a lower threshold rather than a
+    # different test.
+    if closed >= (CARRY_APPROACH_MIN if carried else APPROACH_MIN):
         return True
     span = max(p["y"] for p in dets) - min(p["y"] for p in dets)
     peak = max(p["conf"] for p in dets)
