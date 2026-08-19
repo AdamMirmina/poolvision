@@ -23,6 +23,7 @@ association is enough.
 
 from __future__ import annotations
 
+import os as _os
 from collections import defaultdict
 
 MATCH_PX = 150      # a ball moves ~15-60 px/frame here; 150 tolerates a fast throw
@@ -31,6 +32,22 @@ MIN_TRACK = 3       # shorter than this is noise, not an object
 PREDICT_CAP = 5     # frames of velocity to extrapolate across a gap, at most
 GAP_SLACK_PX = 30   # extra match radius per frame of gap
 MAX_RADIUS_PX = 260 # ceiling on that growth -- see below
+# Confidence a detection needs to START a track, as opposed to extend one.
+#
+# Starting a track asserts a new object exists; extending one only says an object
+# already believed in was seen again. Those are different claims and the second
+# is far cheaper, so they should not share a threshold of zero.
+#
+# The failure this exists for: when the stock detector loses the ball the
+# fine-tune sprays up to six boxes in a frame at conf 0.05-0.11 and w=30, against
+# a real ball at conf 0.2-0.9 and w=63. Each spray box that matches nothing opens
+# its own track, and those tracks then compete with the real one through greedy
+# association. Measured on nine seconds of repeat shooting at one hoop: 22 tracks
+# for one ball, one of them holding the true 512px descent and the rest holding
+# 130-240px fragments that then fail the drop gate. Every miss on the densest
+# recording is a shot within a few seconds of the one before it, which is exactly
+# when the ball is lost often enough for the spray to appear.
+NEW_TRACK_CONF = float(_os.environ.get("NEW_TRACK_CONF", 0.0))
 
 
 def build_tracks(hits: list[dict], match_px: float | None = None,
@@ -131,7 +148,7 @@ def build_tracks(hits: list[dict], match_px: float | None = None,
             t["miss"] = 0
 
         for di, d in enumerate(dets):
-            if di not in used_d:
+            if di not in used_d and d["conf"] >= NEW_TRACK_CONF:
                 open_tracks.append({"pts": [d], "vx": 0.0, "vy": 0.0, "miss": 0})
 
         still_open = []
