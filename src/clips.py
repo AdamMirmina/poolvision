@@ -18,6 +18,8 @@ Run: python src/clips.py footage/x.MOV out/rimwatch_full.json
 
 from __future__ import annotations
 
+import os as _os
+
 import argparse
 import json
 import subprocess
@@ -142,7 +144,7 @@ def parse_args():
 
 
 JITTER_PX = 25      # detector wobble tolerated without calling it a direction change
-MIN_DROP_PX = 325   # a real descent, not the ball jiggling in someone's hands
+MIN_DROP_PX = float(_os.environ.get("MIN_DROP_PX", 250))   # a real descent, not the ball jiggling in someone's hands
 # ...or, for a dunk, enough consecutive sightings at the hoop to mean the ball
 # was really brought there. Set from the marked tape: the two clear dunks it
 # missed ran 16 and 13 detections; the false positive review flagged at 4:10
@@ -201,7 +203,6 @@ RING_NEAR = 0.6      # rim widths from the ring center, at closest approach
 RING_FALL_PX = 450   # and it must drop this far afterwards
 # Two calls at one hoop this close together are one shot seen twice. A real
 # second attempt needs the ball to come back out and be shot again.
-import os as _os
 MERGE_CALLS_S = float(_os.environ.get("MERGE_CALLS_S", 2.5))
 # GRAVITY. A ball in free flight accelerates; a ball someone is carrying moves at
 # wading speed. This is the one discriminator on the project that is physics
