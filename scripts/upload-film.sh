@@ -13,7 +13,8 @@ BUCKET=poolean-film
 WEB=/c/dev/poolean/web
 
 shopt -s nullglob
-files=(out/film/*.mp4)
+SRC=${SRC:-out/film}
+files=($SRC/*.mp4)
 if [ ${#files[@]} -eq 0 ]; then
   echo "Nothing in out/film. Run scripts/make-review-copies.sh first." >&2
   exit 1
@@ -25,11 +26,24 @@ for f in "${files[@]}"; do
   echo "uploading $name (${mb} MB) ..."
   # --remote, or wrangler writes to the LOCAL simulated bucket and reports
   # success having uploaded nothing anyone can reach.
-  ( cd "$WEB" && CLOUDFLARE_ACCOUNT_ID=$ACC npx wrangler r2 object put \
-      "$BUCKET/$name" --file "$(cd - >/dev/null && pwd)/$f" \
-      --content-type video/mp4 --remote >/dev/null 2>&1 ) \
-    && echo "  https://poolean.adammirmina.com/film/$name" \
-    || echo "  $name FAILED"
+  #
+  # The repo's own wrangler rather than npx. npx re-resolves the package on
+  # every run and will reinstall it into a shared cache; when that cache is
+  # locked by another wrangler process the install dies with EBUSY and takes the
+  # upload down with it. That happened to all ten files at once.
+  #
+  # And the error is shown rather than sent to /dev/null. It was hidden, so ten
+  # uploads failed for one reason and this printed FAILED ten times without ever
+  # saying why. Stops on the first failure instead of carrying on: a bucket half
+  # updated is worse than one not updated at all, because nothing afterwards
+  # says which half.
+  abs=$(cd "$(dirname "$f")" && pwd)/$(basename "$f")
+  if ( cd "$WEB" && CLOUDFLARE_ACCOUNT_ID=$ACC ./node_modules/.bin/wrangler r2 object put \
+       "$BUCKET/$name" --file "$abs" --content-type video/mp4 --remote 2>&1 | tail -2 ); then
+    echo "  https://poolean.adammirmina.com/film/$name"
+  else
+    echo "  $name FAILED, stopping"; exit 1
+  fi
 done
 
 echo

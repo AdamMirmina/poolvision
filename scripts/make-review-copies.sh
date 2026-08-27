@@ -16,9 +16,20 @@
 # -sc_threshold 0 stop x264 placing them anywhere else, so the spacing is
 # actually regular rather than merely capped.
 #
-# It costs size, because a keyframe is a whole picture. That is the trade being
-# made deliberately: a scrub that responds immediately is worth more here than a
-# smaller file, and the free tier has room.
+# It costs size, because a keyframe is a whole picture: 903 MB became 1.6 GB.
+#
+# MEASURED AFTERWARDS, AND IT DID NOT HELP. Median time to a ready frame across
+# six scattered seeks was 302ms on the old encode and 292ms on this one, ranges
+# overlapping. The reasoning behind the change was wrong: 250 frames of 720p is
+# a few tens of milliseconds to decode, not anything a person feels, so the
+# keyframe distance was never the bottleneck. The seek lag that prompted this
+# came from the player element being torn down and reloaded on every repaint,
+# which is fixed in the site rather than here.
+#
+# Kept because dense keyframes are still the better default for a tool built for
+# scrubbing, they are not slower, and the free tier has room. But do not repeat
+# this expecting a speed win, and measure before re-encoding ninety gigabytes
+# again.
 set -u
 FF=$(py -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
 OUT=${1:-out/film}
