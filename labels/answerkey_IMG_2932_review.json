@@ -1,0 +1,426 @@
+{
+ "video": "IMG_2932.mp4",
+ "game": "cmgf3z9rea2l7rc",
+ "date": "Sun Aug 16",
+ "shots": [
+  {
+   "t": 1559.88,
+   "at": "25:59",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1566.63,
+   "at": "26:06",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1571.4,
+   "at": "26:11",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1606.41,
+   "at": "26:46",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1619.73,
+   "at": "26:59",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P4"
+  },
+  {
+   "t": 1621.66,
+   "at": "27:01",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1623.85,
+   "at": "27:03",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1626.43,
+   "at": "27:06",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P4"
+  },
+  {
+   "t": 1644.47,
+   "at": "27:24",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1656.35,
+   "at": "27:36",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1660.44,
+   "at": "27:40",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1686.89,
+   "at": "28:06",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1690.33,
+   "at": "28:10",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1703.02,
+   "at": "28:23",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1736.15,
+   "at": "28:56",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1743.5,
+   "at": "29:03",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1746.67,
+   "at": "29:06",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1752.62,
+   "at": "29:12",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1758.87,
+   "at": "29:18",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P4"
+  },
+  {
+   "t": 1780.26,
+   "at": "29:40",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1782.63,
+   "at": "29:42",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1787.87,
+   "at": "29:47",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1795.81,
+   "at": "29:55",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1808.13,
+   "at": "30:08",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1816.33,
+   "at": "30:16",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1822.84,
+   "at": "30:22",
+   "outcome": "make",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P4"
+  },
+  {
+   "t": 1835.65,
+   "at": "30:35",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1859.77,
+   "at": "30:59",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1868.64,
+   "at": "31:08",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1901.57,
+   "at": "31:41",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1916.84,
+   "at": "31:56",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P4"
+  },
+  {
+   "t": 1916.84,
+   "at": "31:56",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1964.15,
+   "at": "32:44",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1968.87,
+   "at": "32:48",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1972.13,
+   "at": "32:52",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 1977.13,
+   "at": "32:57",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 1988.17,
+   "at": "33:08",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 1993.92,
+   "at": "33:13",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 1999.37,
+   "at": "33:19",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 2039.39,
+   "at": "33:59",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 2047.83,
+   "at": "34:07",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 2047.83,
+   "at": "34:07",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P3"
+  },
+  {
+   "t": 2058.86,
+   "at": "34:18",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 2058.86,
+   "at": "34:18",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 2148.24,
+   "at": "35:48",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 2153.72,
+   "at": "35:53",
+   "outcome": "miss",
+   "points": 3,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 2158.11,
+   "at": "35:58",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P2"
+  },
+  {
+   "t": 2183.31,
+   "at": "36:23",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 2191.72,
+   "at": "36:31",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 2202.4,
+   "at": "36:42",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  },
+  {
+   "t": 2223.02,
+   "at": "37:03",
+   "outcome": "miss",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P1"
+  },
+  {
+   "t": 2226.85,
+   "at": "37:06",
+   "outcome": "make",
+   "points": 2,
+   "shooter_cap": "",
+   "shooter_ref": "P5"
+  }
+ ],
+ "note_on_provenance": "Derived from reviewed game film, not marked blind for this project. The reviewer logs every shot for the box score without seeing any model output, so it is not biased by the detector; but it was marked to answer a different question, so treat a disagreement as worth checking rather than as a definite miss.",
+ "scores_detection_not_attribution": "Use this for whether a shot happened and whether it went in. It CANNOT score attribution: shooter_ref is an anonymous per-video label, and nothing records which cap each person wore, so there is no way to line a reference up with a cap the model called. Shots keep a reference rather than nothing so that a future cap assignment can be applied to them.",
+ "hoop_absent": "The review records who shot, not which hoop. The scorer treats a missing hoop as either, so a real call at the right moment still matches."
+}
