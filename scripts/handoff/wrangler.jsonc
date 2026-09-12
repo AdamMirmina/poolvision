@@ -1,0 +1,10 @@
+{
+  // A throwaway hand-off Worker: multipart uploads into poolean-film under raw/,
+  // and token-gated, range-capable downloads of the same objects. Deleted once
+  // the recipient has the files. No custom domain; the workers.dev URL is enough.
+  "name": "film-handoff",
+  "account_id": "7add713aa8b1453972d1181241b4f88c",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  "r2_buckets": [{ "binding": "FILM", "bucket_name": "poolean-film" }]
+}
